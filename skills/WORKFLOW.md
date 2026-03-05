@@ -21,16 +21,16 @@
 
 ```mermaid
 flowchart TD
-    PDF[既存PDF資料] -->|/slidekit-templ| TMPL[HTMLテンプレート]
-    TMPL -->|テンプレート登録\n（再利用可能）| TMPL
-    TMPL --> NEW[新規作成\n通常モード]
-    TMPL --> REUSE[テーマ流用\nテンプレートモード]
-    TMPL -.-> REF[デザイン参照]
-    NEW --> CREATE[/slidekit-create]
+    PDF["既存PDF資料"] -->|/slidekit-templ| TMPL["HTMLテンプレート"]
+    TMPL -->|"テンプレート登録<br/>（再利用可能）"| TMPL
+    TMPL --> NEW["新規作成<br/>通常モード"]
+    TMPL --> REUSE["テーマ流用<br/>テンプレートモード"]
+    TMPL -.-> REF["デザイン参照"]
+    NEW --> CREATE["/slidekit-create"]
     REUSE --> CREATE
-    IMGEN[/imgen\n画像生成] --> HTML
-    CREATE --> HTML[HTMLスライド群\n001.html ...]
-    HTML -->|/pptx| PPTX[完成PPTX]
+    IMGEN["/imgen<br/>画像生成"] --> HTML
+    CREATE --> HTML["HTMLスライド群<br/>001.html ..."]
+    HTML -->|/pptx| PPTX["完成PPTX"]
 ```
 
 ---
@@ -98,8 +98,8 @@ PowerPointを直接生成するアプローチには2つの選択肢がある。
 
 ```mermaid
 flowchart LR
-    A[通常のHTMLスライド] --> B[DOM解析] --> C[PptxGenJSで\nテキスト・図形に変換]
-    D[Chart.jsスライド] --> E[スクリーンショット] --> F[PNGとして埋め込み]
+    A["通常のHTMLスライド"] --> B["DOM解析"] --> C["PptxGenJSで<br/>テキスト・図形に変換"]
+    D["Chart.jsスライド"] --> E["スクリーンショット"] --> F["PNGとして埋め込み"]
 ```
 
 ### 変換後の自動修正
@@ -290,12 +290,12 @@ AIに「自由にレイアウトして」と指示すると、タイトル＋箇
 
 ```mermaid
 flowchart LR
-    P0[Phase 0\nテンプレ検出] --> P1[Phase 1\nヒアリング]
-    P1 --> P2[Phase 2\nデザイン決定]
-    P2 --> P3[Phase 3\nスライド構成設計]
-    P3 --> P4[Phase 4\nHTML生成]
-    P4 --> P5[Phase 5\nprint.html]
-    P5 --> P6[Phase 6\n品質チェック]
+    P0["Phase 0<br/>テンプレ検出"] --> P1["Phase 1<br/>ヒアリング"]
+    P1 --> P2["Phase 2<br/>デザイン決定"]
+    P2 --> P3["Phase 3<br/>スライド構成設計"]
+    P3 --> P4["Phase 4<br/>HTML生成"]
+    P4 --> P5["Phase 5<br/>print.html"]
+    P5 --> P6["Phase 6<br/>品質チェック"]
 ```
 
 ### Phase 0：テンプレート検出
