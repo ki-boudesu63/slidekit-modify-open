@@ -1,6 +1,6 @@
 ---
 name: slidekit-create
-description: Generate HTML slide presentations (1 slide = 1 HTML file, 1280x720px) using Tailwind CSS, Font Awesome, and Google Fonts. Use when the user asks to create a new presentation deck or slide HTML files. Covers design guidelines, 20 layout patterns, component library, and PPTX conversion compatibility rules. Supports style selection (creative, elegant, modern, professional, minimalist) and theme selection (marketing, portfolio, business, technology, education).
+description: Generate HTML slide presentations (1 slide = 1 HTML file, 1280x720px) using Tailwind CSS, Font Awesome, and Google Fonts. Use when the user asks to create a new presentation deck or slide HTML files. Covers design guidelines, 43 layout patterns, component library, and PPTX conversion compatibility rules. Supports style selection (creative, elegant, modern, professional, minimalist) and theme selection (marketing, portfolio, business, technology, education).
 ---
 
 # SlideKit Create
@@ -301,13 +301,13 @@ For each slide, determine:
 
 1. **File number** (`001.html`, `002.html`, ...)
 2. **Type** (Cover / Agenda / Section Divider / Content / Summary / Closing)
-3. **Layout pattern** (from the 20 patterns — see Phase 4 reference)
+3. **Layout pattern** (from the 43 patterns — see Phase 4 reference)
 4. **Content summary** (what text/data goes on this slide)
 
 Rules:
 - Never use the same layout pattern for 3 or more consecutive slides
 - Match content from Phase 1-3 (reference file / text / topic) to appropriate slide types
-- Use good variety across the 20 layout patterns
+- Use good variety across the 43 layout patterns
 - **Chart.js auto-detection:** For slides with data visualizations, decide whether to use Chart.js or CSS-only based on the "When to Use Chart.js vs CSS-Only" table in [references/patterns.md](references/patterns.md). Mark Chart.js slides in the slide map. CSS-only and Chart.js charts can coexist in the same deck
 
 ### 3-4. Standard Composition for 20 Slides (Reference)
@@ -387,7 +387,7 @@ Generate all slide HTML files based on the slide map from Phase 3.
 - The `<script>` for Chart initialization must be placed just before `</body>`, **after** the slide `<div>`
 - Each chart `<canvas>` must have a unique `id` attribute
 
-### 20 Layout Patterns
+### 43 Layout Patterns
 
 Use one pattern per slide. For full DOM trees and component snippets, see [references/patterns.md](references/patterns.md).
 
@@ -413,6 +413,29 @@ Use one pattern per slide. For full DOM trees and component snippets, see [refer
 | 18 | **HBF + Contact** | Pattern 3 body with `w-1/2` message + `w-1/2` contact card | Contact info, CTA slides |
 | 19 | **HBF + 5-Column Process** | Pattern 3 body with `grid grid-cols-5` + optional RACI box | 5-step process flows, methodology |
 | 20 | **HBF + VS Comparison** | Pattern 3 body with two cards + central VS badge | Head-to-head competitor comparison |
+| 21 | **Section End / Summary** | `flex flex-col` with numbered key points + accent border | Section closing, key takeaways |
+| 22 | **Table of Contents** | `flex flex-col` with numbered agenda items + active highlight | Agenda, table of contents |
+| 23 | **HBF + 2×3 Grid** | Pattern 3 body with `grid grid-cols-3 grid-rows-2` | 6-element overview, feature grid |
+| 24 | **HBF + Icon List** | Pattern 3 body with icon circles + text rows | Feature lists, benefit highlights |
+| 25 | **HBF + Image Header Panel** | Pattern 3 body with image-topped cards | Visual category cards |
+| 26 | **HBF + Emphasis Panel** | Pattern 3 body with left-border accent panels | Key message emphasis, callouts |
+| 27 | **Glass Panel (Dark)** | `relative` dark bg + `backdrop-blur` glass panels | Premium dark-theme content |
+| 28 | **HBF + Gradient Panel** | Pattern 3 body with gradient-bg panels | Highlighted content sections |
+| 29 | **HBF + Card Layout with Image** | Pattern 3 body with icon + description cards | Service/product feature cards |
+| 30 | **Right-Side Background Image** | `flex` with text left + image right (`w-2/5`) | Text + supporting image |
+| 31 | **Quote Slide** | `flex flex-col items-center justify-center` with large quotation marks | Inspirational quotes, testimonials |
+| 32 | **Multiple Images Split** | `flex` with multiple image panels side by side | Photo gallery, visual comparison |
+| 33 | **Statistics Emphasis** | Pattern 3 body with large stat numbers + labels | KPI highlights, data callouts |
+| 34 | **Center Message** | `flex flex-col items-center justify-center` with single message | Key statement, transition message |
+| 35 | **Q&A Slide** | Centered large "Q&A" text with subtitle | Question & answer session |
+| 36 | **Question Slide** | Centered question mark with audience prompt | Audience engagement, reflection |
+| 37 | **Movie / Book Quote** | `flex` with dark accent bar + quote + attribution | Famous quotes, literary references |
+| 38 | **HBF + Inline Image** | Pattern 3 body with image + numbered text items | Image-supported explanations |
+| 39 | **HBF + Statistics Ratio** | Pattern 3 body with vertical bar chart comparison | Ratio visualization, benchmarks |
+| 40 | **HBF + Text + Stats Panel** | Pattern 3 body with text block + stat cards | Mixed narrative + data |
+| 41 | **Summary Glass Vertical** | Dark bg + vertical glass panels with key points | Premium summary, dark-theme recap |
+| 42 | **HBF + Simple List + Supplement** | Pattern 3 with bullet list (60%) + supplement panel (40%) | Lists with additional context |
+| 43 | **HBF + Case Study** | Pattern 3 with challenge → solution → result flow | Company case studies, success stories |
 
 ### Heading Convention
 
