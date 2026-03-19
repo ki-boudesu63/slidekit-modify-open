@@ -23,7 +23,7 @@ For user-provided custom templates, see [references/templates/](references/templ
 | 2 | デザイン決定 | カラーパレット・フォント・アイコンを確定 |
 | 3 | スライド構成の設計 | 各スライドの役割・レイアウトパターンを計画 |
 | 4 | HTML生成 | 全スライドを 001.html 〜 NNN.html として出力 |
-| 5 | print.html 生成 | 全スライド一覧表示用ページを出力 |
+| 5 | index.html 生成 | ナビゲーション付きビューア兼印刷用ページを出力 |
 | 6 | チェックリスト確認 | 制約・品質基準への適合を検証 |
 | 7 | PPTX変換（任意） | /pptx スキルで PowerPoint に変換 |
 
@@ -39,6 +39,7 @@ Scan `references/templates/` for **both** subdirectories and loose `.html` files
 
 - **Subdirectories** — each subdirectory is treated as a separate template set (e.g., `templates/navy-gold/`, `templates/modern-tech/`)
 - **Loose HTML files** — `.html` files directly under `references/templates/` are treated as a single template set named "default"
+- **Image directories** — check each template set for an `images/` subdirectory (e.g., `templates/navy-gold/images/`). If found, these images are available as template assets
 
 If nothing is found (no subdirectories and no HTML files) → proceed to Phase 1 in **通常モード**.
 
@@ -78,6 +79,14 @@ Read the selected template files and extract:
 - Header/footer structure and style
 - Decorative elements and visual motifs
 - Layout patterns used
+- **Template images** — parse `<img>` tags in each template HTML and catalog:
+  - `src` path, positioning attributes (`position`, `z-index`, `width`, `height`), and parent element location
+  - Inferred role based on attributes:
+    - **背景画像 (Background)** — `position: absolute` + low z-index (0 or below) + large size (width > 400px or height > 400px)
+    - **ロゴ (Logo)** — small size + located in header/footer region + appears across multiple slides
+    - **コンテンツ画像 (Content)** — all other images (main content area, medium size)
+  - Which slide type (Cover / Agenda / Content / Closing) uses each image
+  - Also scan the template's `images/` subdirectory to identify available image assets not referenced in HTML
 
 Proceed to Phase 1 in **テンプレートモード**.
 
@@ -87,7 +96,7 @@ Proceed to Phase 1 in **テンプレートモード**.
 - **Slide size must remain 1280x720px.** Ignore any different dimensions in custom templates.
 - **Do not copy text content.** Custom templates are style references only. All text content comes from Phase 1 hearing.
 - **Maximum 5 template files per set.** If a template set contains more than 5 HTML files, read only the first 5 (sorted alphabetically) to limit context usage. Warn the user that remaining files were skipped.
-- **Supported format: HTML only.** Ignore non-HTML files (images, PDFs, etc.) in the templates directory.
+- **Supported formats: HTML and images.** Image files (`.jpg`, `.png`, `.webp`, `.svg`) within the template's `images/` subdirectory are included as template assets. Other non-HTML files (PDFs, etc.) are ignored.
 
 ---
 
@@ -341,6 +350,15 @@ Rules:
 
 Generate all slide HTML files based on the slide map from Phase 3.
 
+### 4-0. テンプレート画像のコピー（テンプレートモードのみ）
+
+If the selected template contains an `images/` subdirectory:
+
+1. Copy the template's `images/` directory to `{output_dir}/images/`
+2. All subsequent HTML generation must reference template-derived images using the same relative paths (e.g., `images/bg_cover.jpg`)
+
+Skip this step in 通常モード or when the template has no images.
+
 ### 4-1. For Each Slide
 
 1. Use the HTML Boilerplate (below)
@@ -348,7 +366,12 @@ Generate all slide HTML files based on the slide map from Phase 3.
 3. Use the layout pattern assigned in Phase 3
 4. Fill in the content from Phase 1-3 (reference file / text / generated)
 5. **If the slide is marked "Chart.js" in the slide map:** use Chart.js `<canvas>` patterns from [references/patterns.md](references/patterns.md) (Chart.js Patterns section). Include the Chart.js CDN `<script>` in `<head>` and initialization `<script>` before `</body>`
-6. Save as `{output_dir}/{NNN}.html` (zero-padded: 001.html, 002.html, ...)
+6. **Template images (テンプレートモードのみ):** if template images were cataloged in Phase 0, reproduce the template's image placement:
+   - **Cover / Closing slides** → place background images (`bg_*`) using the same positioning as the template (absolute, low z-index, matching dimensions)
+   - **All content slides** → place logo images in the header/footer region matching the template's layout
+   - **Slide-type matching** → use the image set associated with each slide type from the Phase 0 catalog (e.g., Cover uses `bg_cover.*`, Agenda uses `bg_agenda.*`)
+   - Reference images via relative path `images/{filename}` (copied in step 4-0)
+7. Save as `{output_dir}/{NNN}.html` (zero-padded: 001.html, 002.html, ...)
 
 ### HTML Boilerplate
 
@@ -456,46 +479,38 @@ Large digits + small unit span:
 
 ---
 
-## Phase 5: print.html 生成
+## Phase 5: index.html 生成
 
-After all slide HTML files are generated, create `{output_dir}/print.html` for viewing and printing all slides:
+After all slide HTML files are generated, create `{output_dir}/index.html` — a presentation viewer with keyboard navigation, viewport scaling, fullscreen, and PDF export.
+
+Use the template at [references/index-template.html](references/index-template.html) as the base. Replace the placeholders:
+
+1. **`{{TITLE}}`** → presentation title from Phase 1
+2. **`<!-- {{SLIDES}} -->`** → one `<div>` per slide:
 
 ```html
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="utf-8" />
-    <title>View for Print</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #FFFFFF; }
-        .slide-frame {
-            width: 1280px; height: 720px;
-            margin: 20px auto;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            border: 1px solid #e2e8f0;
-            overflow: hidden;
-        }
-        .slide-frame iframe { width: 1280px; height: 720px; border: none; }
-        @media print {
-            body { background: #FFFFFF; }
-            .slide-frame {
-                page-break-after: always; box-shadow: none; border: none;
-                margin: 0 auto;
-                transform: scale(0.85); transform-origin: top center;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- One iframe per slide -->
-    <div class="slide-frame"><iframe src="001.html"></iframe></div>
-    <!-- ... repeat for all slides ... -->
-</body>
-</html>
+<div class="slide-frame"><iframe src="001.html"></iframe></div>
+<div class="slide-frame"><iframe src="002.html"></iframe></div>
+<!-- ... repeat for all slides ... -->
 ```
 
-Add one `<div class="slide-frame"><iframe src="{NNN}.html"></iframe></div>` per slide.
+### Viewer Features
+
+| Feature | How it works |
+|---------|-------------|
+| Keyboard nav | → ↓ Space = next, ← ↑ = prev, F = fullscreen |
+| Click nav | Click on deck area = next slide |
+| Nav buttons | Prev / Next / PDF / Fullscreen (bottom-right overlay) |
+| Slide counter | `01 / 20` format (bottom-left) |
+| Viewport scaling | `transform: scale()` to fit any window size |
+| PDF export | `window.print()` with `@media print` (all slides visible, page breaks) |
+| Print scale | URL param `?print-scale=120` for custom print size |
+
+### Important
+
+- The viewer shows **one slide at a time** (iframe toggle via `.is-active` class)
+- In print mode, **all slides are shown** with `break-after: page`
+- No external dependencies — the viewer is self-contained vanilla JS + CSS
 
 ---
 
@@ -507,7 +522,7 @@ After Phase 4 and Phase 5 are complete, verify the following. Fix any issues bef
 - [ ] Custom colors defined identically in every `<style>`
 - [ ] Root is single `<div>` under `<body>` with `overflow: hidden` (only sibling allowed: Chart.js `<script>` on chart slides)
 - [ ] Slide size exactly 1280 x 720
-- [ ] No external images (unless user approved)
+- [ ] No external images (unless user approved or bundled with template)
 - [ ] No JavaScript except Chart.js on chart slides (no other `<script>` tags allowed)
 - [ ] All files for the chosen slide count are present
 - [ ] Font sizes follow hierarchy
@@ -520,7 +535,7 @@ After Phase 4 and Phase 5 are complete, verify the following. Fix any issues bef
 - [ ] No visible text in `::before` / `::after`
 - [ ] No one-off colors outside palette
 - [ ] Content density guidelines followed
-- [ ] `print.html` generated with iframes for all slides
+- [ ] `index.html` generated with iframes for all slides + navigation engine
 
 ---
 
@@ -595,7 +610,7 @@ Convert the HTML slide deck in {output_dir} to a single PPTX file.
 | Language | `lang="ja"` |
 | Root DOM | `<body>` -> single wrapper `<div>` (only sibling allowed: Chart.js `<script>` on chart slides) |
 | Overflow | `overflow: hidden` on root wrapper |
-| External images | None by default. Explicit user approval required |
+| External images | None by default. **Exception:** images bundled with a selected template (`images/` subdirectory) are automatically approved and copied to the output directory. Other external images require explicit user approval |
 | JavaScript | **Forbidden by default.** Exception: Chart.js is used automatically when data visualizations require it (see Phase 3 auto-detection). No other JS libraries permitted |
 | Custom CSS | Inline `<style>` in `<head>` only; no external CSS files |
 

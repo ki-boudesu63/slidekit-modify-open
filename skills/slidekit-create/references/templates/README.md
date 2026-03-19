@@ -24,7 +24,10 @@ templates/
 ├── navy-gold/
 │   ├── 001.html
 │   ├── 002.html
-│   └── 003.html
+│   ├── 003.html
+│   └── images/
+│       ├── bg_cover.png
+│       └── logo.png
 ├── modern-tech/
 │   ├── 001.html
 │   └── 002.html
@@ -33,8 +36,10 @@ templates/
 
 ## Rules
 
-- **HTML files only** (`.html`) — other file types are ignored
-- **Max 5 files per template set** — if more than 5 exist, only the first 5 (alphabetical) are read
+- **HTML files and images** — `.html` files are read as style references; image files (`.jpg`, `.png`, `.webp`, `.svg`) in the `images/` subdirectory are included as template assets. Other file types are ignored
+- **Max 5 HTML files per template set** — if more than 5 exist, only the first 5 (alphabetical) are read
 - Files should follow the 1280x720px slide format for best results
 - Text content in templates is ignored — only the visual style is extracted
 - All Mandatory Constraints from SKILL.md still apply to generated output
+- **Image assets** are automatically copied to the output directory's `images/` folder and referenced via relative paths in generated HTML
+- **Image role detection** — the role of each image (background, logo, content) is inferred from `<img>` tag attributes in template HTML (`position`, `z-index`, size)

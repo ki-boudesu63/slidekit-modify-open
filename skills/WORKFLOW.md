@@ -431,7 +431,7 @@ cp slide-templates/abc-navy/00[1-5].html \
 ## 9. ディレクトリ構成
 
 ```
-claude-code-skills/
+SlideKit/
 ├── skills/
 │   ├── slidekit-create/           # HTMLスライド生成スキル
 │   │   ├── SKILL.md               # 7フェーズワークフロー定義（29KB）

@@ -2,58 +2,332 @@
 
 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 用のプレゼンテーションスライド制作ツールキットです。
 
-HTMLスライドの新規作成から、既存PDFのHTML化、さらにPowerPoint（PPTX）への変換まで、スライド制作の一連のワークフローをカバーします。
+対話形式でHTMLスライドを新規作成し、ブラウザでそのままプレゼンできます。既存PDFのHTML化や PowerPoint（PPTX）変換にも対応しています。
 
-## Claude Code スキルとは
+---
 
-Claude Code のスキルは、Claude に特定の専門知識やワークフローを教えるための仕組みです。スキルをインストールすると、Claude Code のセッション内でスラッシュコマンドとして呼び出せるようになります。
+## 目次
 
-スキルの実体は `SKILL.md` というMarkdownファイルで、Claude が従うべき手順・制約・デザインルールなどが記述されています。
+- [できること](#できること)
+- [インストール](#インストール)
+- [クイックスタート](#クイックスタート)
+- [スキル一覧](#スキル一覧)
+  - [/slidekit-create — スライド新規作成](#slidekit-create--スライド新規作成)
+  - [/slidekit-templ — PDFからテンプレート作成](#slidekit-templ--pdfからテンプレート作成)
+  - [/pptx — PowerPoint変換](#pptx--powerpoint変換)
+  - [/imgen — AI画像生成](#imgen--ai画像生成)
+- [付属テンプレート（11種類）](#付属テンプレート11種類)
+- [ディレクトリ構成](#ディレクトリ構成)
+- [よくある質問](#よくある質問)
+- [ライセンス](#ライセンス)
 
-## 収録スキル一覧
+---
 
-| コマンド | 概要 |
-|---------|------|
-| [`/slidekit-create`](#slidekitcreate) | HTMLスライドを新規作成（43レイアウトパターン） |
-| [`/slidekit-templ`](#slidekittempl) | PDFからHTMLスライドテンプレートを作成 |
-| [`/pptx`](#html-から-powerpointpptxへの変換) | HTMLをPowerPointに変換 |
-| `/imgen` | スライド用の画像をAI生成（Azure OpenAI gpt-image-1.5） |
-
-4つのスキルが連携して動作します。詳しくは [WORKFLOW.md](skills/WORKFLOW.md) を参照してください。
+## できること
 
 ```mermaid
 flowchart TD
     PDF["既存PDF資料"] -->|/slidekit-templ| TMPL["HTMLテンプレート"]
-    TMPL --> TEMPLATES["templates/ に配置<br/>サブディレクトリで複数管理も可能"]
+    TMPL --> TEMPLATES["templates/ に配置"]
     TEMPLATES --> CREATE["/slidekit-create<br/>テンプレートモードで新規作成"]
     IMGEN["/imgen<br/>画像生成"] --> HTML
-    CREATE --> HTML["HTMLスライド群"]
+    CREATE --> HTML["HTMLスライド群<br/>+ index.html（ビューア）"]
     HTML -->|/pptx| PPTX["PowerPoint に変換"]
+    HTML -->|ブラウザで開く| PRESENT["そのままプレゼン"]
 ```
+
+| やりたいこと | 使うスキル |
+|-------------|-----------|
+| 新しいプレゼン資料を作りたい | `/slidekit-create` |
+| 既存PDFのデザインを再利用したい | `/slidekit-templ` → `/slidekit-create` |
+| HTMLスライドをPowerPointにしたい | `/pptx` |
+| スライド用の画像を生成したい | `/imgen` |
+
+---
 
 ## インストール
 
-全スキルを一括でインストール:
+### 前提条件
+
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) がインストール済みであること
+
+### Step 1: 全スキルを一括インストール
 
 ```bash
-claude install-skill https://github.com/nogataka/claude-code-skills
+claude install-skill https://github.com/nogataka/SlideKit
 ```
 
-個別にインストールする場合:
+これだけで `/slidekit-create`、`/slidekit-templ`、`/pptx`、`/imgen` の4つが使えるようになります。
+
+### Step 2: 個別にインストールしたい場合（任意）
+
+特定のスキルだけ使いたい場合は、個別にインストールできます。
 
 ```bash
-# slidekit-create のみ
-claude install-skill https://github.com/nogataka/claude-code-skills/tree/main/skills/slidekit-create
+# スライド新規作成のみ
+claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/slidekit-create
 
-# slidekit-templ のみ
-claude install-skill https://github.com/nogataka/claude-code-skills/tree/main/skills/slidekit-templ
+# PDFテンプレート化のみ
+claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/slidekit-templ
+
+# PPTX変換のみ
+claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/pptx
+
+# AI画像生成のみ
+claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/imgen
+```
+
+### Step 3: インストールの確認
+
+Claude Code を起動し、スラッシュコマンドが認識されることを確認します。
+
+```
+/slidekit-create
+```
+
+> ヒアリングの質問が表示されればインストール成功です。
+
+### アンインストール
+
+```bash
+rm -rf ~/.claude/skills/slidekit-create
+rm -rf ~/.claude/skills/slidekit-templ
+rm -rf ~/.claude/skills/pptx
+rm -rf ~/.claude/skills/imgen
 ```
 
 ---
 
-## slide-templates（付属テンプレート）
+## クイックスタート
 
-リポジトリには **slide-templates/** に11種類のHTMLスライドテンプレートが同梱されています。ビジネスプレゼン、事業計画書、AI提案書、市場調査レポートなど、用途別にデザインが用意されており、`/slidekit-create` のテンプレートモードでそのまま利用できます。
+### 1. スライドを作る
+
+Claude Code で以下のいずれかを入力します。
+
+```
+/slidekit-create
+```
+
+```
+プレゼン資料を作ってください
+```
+
+Claude が一問一答形式で質問してきます。番号で回答していくだけで、スライドが生成されます。
+
+```
+質問例:
+> 「スタイルを選択してください。番号で回答してください。」
+> 1. Creative  2. Elegant  3. Modern  4. Professional  5. Minimalist
+
+回答: 3
+```
+
+### 2. ブラウザで確認する
+
+生成された `index.html` をブラウザで開きます。
+
+```bash
+open output/slide-page01/index.html
+```
+
+| 操作 | キー |
+|------|------|
+| 次のスライド | → / ↓ / Space / クリック |
+| 前のスライド | ← / ↑ |
+| フルスクリーン | F |
+| PDF書き出し | PDF ボタン |
+
+### 3. PowerPointに変換する（任意）
+
+スライド生成後、Claude が「PPTXに変換しますか？」と聞きます。「はい」で自動変換されます。
+
+手動で変換する場合:
+
+```
+output/slide-page01/ のHTMLスライドをPPTXに変換してください
+```
+
+---
+
+## スキル一覧
+
+### /slidekit-create — スライド新規作成
+
+HTMLスライドプレゼンテーションをゼロから作成します。
+
+#### 仕様
+
+- **1スライド = 1 HTMLファイル**（1280 x 720px）
+- Tailwind CSS + Font Awesome + Google Fonts（CDN経由）
+- 純粋な HTML + CSS（データ可視化が必要な場合のみ Chart.js を使用）
+- `index.html` でブラウザからそのままプレゼン可能
+- PPTX変換を考慮したDOM構造
+
+#### 対話の流れ
+
+すべての質問は**一問一答形式**で、選択肢は**番号入力**で回答します。
+
+| Phase | やること |
+|-------|---------|
+| 0. テンプレート検出 | `templates/` にカスタムテンプレートがあればモード選択 |
+| 1. ヒアリング | スタイル、テーマ、内容ソース、枚数などを質問 |
+| 2. デザイン決定 | カラーパレット・フォント・アイコンを確定 |
+| 3. スライド構成 | 各スライドの役割・レイアウトパターンを計画 |
+| 4. HTML生成 | `001.html` 〜 `NNN.html` を出力 |
+| 5. index.html生成 | ナビゲーション付きビューアを出力 |
+| 6. チェックリスト | 品質基準への適合を検証 |
+| 7. PPTX変換（任意） | `/pptx` スキルで PowerPoint に変換 |
+
+#### スタイル × テーマの組み合わせ
+
+**5種類のスタイル:**
+
+| スタイル | 特徴 |
+|---------|------|
+| Creative | 大胆な配色、グラデーション、遊び心のあるレイアウト |
+| Elegant | 落ち着いたパレット（ゴールド系）、広めの余白 |
+| Modern | フラットデザイン、鮮やかなアクセント、テック志向 |
+| Professional | ネイビー/グレー系、構造的、情報密度高め |
+| Minimalist | 少ない色数、極端な余白、タイポグラフィ主導 |
+
+**5種類のテーマ:**
+
+| テーマ | 用途 |
+|-------|------|
+| Marketing | 製品発表、キャンペーン提案、市場分析 |
+| Portfolio | ケーススタディ、実績紹介、作品集 |
+| Business | 事業計画、経営レポート、戦略提案、投資家ピッチ |
+| Technology | SaaS紹介、技術提案、DX推進、AI/データ分析 |
+| Education | 研修資料、セミナー、ワークショップ |
+
+#### 43種類のレイアウトパターン
+
+カバー、セクション区切り、2カラム、3カラム、タイムライン、KPIダッシュボード、ファネル、グリッドテーブル、2×2グリッド、2×3グリッド、TAM/SAM/SOM、VS比較、ガラスパネル、引用スライド、企業事例など、43種類のレイアウトを使い分けて多彩なスライドを生成します。
+
+#### カスタムテンプレート機能
+
+自作のHTMLスライドをデザインの参考資料として登録できます。登録すると、デザイン関連のヒアリングがスキップされ、テンプレートのカラー・フォント・装飾を引き継いだスライドが生成されます。
+
+**テンプレートの配置先:**
+
+```
+~/.claude/skills/slidekit-create/references/templates/
+```
+
+**配置方法（2パターン）:**
+
+```
+# パターンA: 単一テンプレート — 直下にHTMLを置く
+templates/
+├── 001.html
+├── 002.html
+└── README.md
+
+# パターンB: 複数テンプレート — サブディレクトリで分類
+templates/
+├── navy-gold/
+│   ├── 001.html
+│   └── 002.html
+├── modern-tech/
+│   ├── 001.html
+│   └── 002.html
+└── README.md
+```
+
+> 1テンプレートセットあたり最大5ファイル。テキスト内容はコピーされず、ビジュアルデザインのみ抽出されます。
+
+---
+
+### /slidekit-templ — PDFからテンプレート作成
+
+既存のPDFプレゼンテーションをHTMLスライドに変換し、`/slidekit-create` のカスタムテンプレートとして登録できます。
+
+#### 変換の流れ
+
+```
+PDF → (pdftoppm) → スライド画像（JPEG）
+                        ↓
+    Claude が各画像を読み取り → HTMLを作成
+                        ↓
+         001.html, 002.html, ... + index.html
+```
+
+#### 前提条件
+
+Poppler（`pdftoppm` コマンド）が必要です。
+
+```bash
+# macOS
+brew install poppler
+
+# Ubuntu / Debian
+sudo apt-get install poppler-utils
+
+# Windows (chocolatey)
+choco install poppler
+```
+
+#### 使い方
+
+```
+/slidekit-templ
+```
+
+または:
+
+```
+このPDFからテンプレートを作ってください: ./presentation.pdf
+```
+
+#### テンプレートとして登録する
+
+生成されたHTMLの中から参考にしたいファイルをコピーします。
+
+```bash
+# サブディレクトリで管理する場合
+mkdir -p ~/.claude/skills/slidekit-create/references/templates/my-design
+cp output/templ/*.html ~/.claude/skills/slidekit-create/references/templates/my-design/
+```
+
+登録後、`/slidekit-create` を実行するとテンプレートが検出され、使用するか確認されます。
+
+---
+
+### /pptx — PowerPoint変換
+
+HTMLスライドを PowerPoint（`.pptx`）に変換します。
+
+`/slidekit-create` のワークフロー完了後に自動で変換を提案されますが、手動で呼び出すこともできます。
+
+```
+/pptx
+```
+
+```
+output/slide-page01/ のHTMLスライドをPPTXに変換してください
+```
+
+> SlideKit のHTMLはPPTX変換を前提としたDOM構造で生成されるため、高い変換精度が得られます。複雑なCSSグラデーションや Chart.js チャートの一部はスクリーンショットとして埋め込まれる場合があります。
+
+---
+
+### /imgen — AI画像生成
+
+スライド用の画像をAIで生成します（Azure OpenAI gpt-image-1.5 を使用）。
+
+```
+/imgen
+```
+
+生成した画像はスライド内の画像素材として利用できます。
+
+> 詳細・設定方法・API仕様については [nogataka/imgen](https://github.com/nogataka/imgen) リポジトリを参照してください。
+
+---
+
+## 付属テンプレート（11種類）
+
+`slide-templates/` に11種類のHTMLスライドテンプレートが同梱されています。
 
 | ニックネーム | 用途 |
 |-------------|------|
@@ -69,346 +343,77 @@ claude install-skill https://github.com/nogataka/claude-code-skills/tree/main/sk
 | marketing-research | 市場調査レポート |
 | digital-report | デジタルビジネス戦略レポート |
 
-使い方: `slide-templates/{ニックネーム}/` 内の HTML を `~/.claude/skills/slidekit-create/references/templates/{ニックネーム}/` にコピーしてください。1テンプレートあたり最大5ファイルが読み込まれるため、代表的なスライド（001〜005など）を選んで配置するか、サブディレクトリごとコピーできます。詳細は [slide-templates/README.md](slide-templates/README.md) を参照してください。
-
----
-
-## slidekit-create
-
-HTMLスライドプレゼンテーションを新規作成するスキルです。
-
-### 特徴
-
-- **1スライド = 1 HTMLファイル**（1280 x 720px）
-- **Tailwind CSS** + **Font Awesome** + **Google Fonts** をCDN経由で使用
-- 基本は純粋な HTML + CSS。データ可視化が必要な場合のみ Chart.js を自動で使用
-- PPTX変換を考慮したDOM構造（`/pptx` スキルと連携可能）
-- `print.html` で全スライドの一覧表示・印刷に対応
-- **一問一答形式** — 1メッセージにつき1質問で、回答を待ってから次へ進むシンプルな対話フロー
-- **番号選択方式** — 選択肢がある質問はすべて番号入力で回答可能（テキスト入力が必要な項目のみ自由入力）
-
-### 対応スタイル（5種類）
-
-| スタイル | 特徴 |
-|---------|------|
-| **Creative** | 大胆な配色、装飾要素、グラデーション、遊び心のあるレイアウト |
-| **Elegant** | 落ち着いたパレット（ゴールド系）、セリフ寄りのタイポグラフィ、広めの余白 |
-| **Modern** | フラットデザイン、鮮やかなアクセントカラー、シャープなエッジ、テック志向 |
-| **Professional** | ネイビー/グレー系、構造的なレイアウト、情報密度高め |
-| **Minimalist** | 少ない色数、極端な余白、タイポグラフィ主導、最小限の装飾 |
-
-### 対応テーマ（5種類）
-
-| テーマ | 用途 |
-|-------|------|
-| **Marketing** | 製品発表、キャンペーン提案、市場分析 |
-| **Portfolio** | ケーススタディ、実績紹介、作品集 |
-| **Business** | 事業計画、経営レポート、戦略提案、投資家ピッチ |
-| **Technology** | SaaS紹介、技術提案、DX推進、AI/データ分析 |
-| **Education** | 研修資料、セミナー、ワークショップ、社内勉強会 |
-
-### スライド枚数
-
-10 / 15 / 20（推奨）/ 25 / 自動 から番号で選択できます。「自動」を選ぶと、内容のボリュームに応じて最適な枚数が自動決定されます。
-
-### 43種類のレイアウトパターン
-
-カバー、セクション区切り、2カラム、3カラム、タイムライン、KPIダッシュボード、ファネル、グリッドテーブル、2×2グリッド、2×3グリッド、TAM/SAM/SOM、チャプター区切り、コンタクト、VS比較、ガラスパネル、グラデーションパネル、引用スライド、統計強調、企業事例など、43種類のレイアウトパターンを使い分けて多彩なスライドを生成します。
-
-### カスタムテンプレート機能
-
-自作のHTMLスライドや `slidekit-templ` で作成したテンプレートをスタイルの参考資料として登録できます。`/slidekit-create` 実行時にテンプレートが検出されると、使用するかどうかをユーザーに確認します。使用を選択すると、カラーパレット・フォント・ヘッダー/フッター・装飾要素などのデザインが自動的に抽出され、デザイン関連のヒアリング（スタイル選択・テーマ選択・カラー希望・背景画像）がスキップされます。
-
-**使い方:**
-
-```
-~/.claude/skills/slidekit-create/references/templates/
-```
-
-上記ディレクトリにHTMLファイルを配置します。
-
-**単一テンプレートの場合** — ディレクトリ直下にHTMLファイルを配置:
-
-```
-templates/
-├── 001.html
-├── 002.html
-└── README.md
-```
-
-**複数テンプレートセットの場合** — サブディレクトリで分類:
-
-```
-templates/
-├── navy-gold/
-│   ├── 001.html
-│   └── 002.html
-├── modern-tech/
-│   ├── 001.html
-│   └── 002.html
-└── README.md
-```
-
-複数のテンプレートセットがある場合、一覧が表示されどれを使用するか選択できます。「使用しない」を選ぶと通常モード（フルヒアリング）で作成されます。
-
-**付属テンプレート（slide-templates）:** リポジトリには `slide-templates/` に11種類のHTMLテンプレート（abc-navy、venture-split、biz-plan-blue、greenfield、novatech、skyline、ai-proposal、customer-experience、ai-tech、marketing-research、digital-report）が同梱されています。これらを `templates/` にコピーすると、すぐにテンプレートモードで利用できます。各テンプレートの詳細と配置手順は [slide-templates/README.md](slide-templates/README.md) を参照してください。
-
-**注意事項:**
-
-- HTMLファイルのみ対応（画像やPDFは無視されます）
-- 1テンプレートセットあたり最大5ファイル（超過分はスキップされます）
-- テキスト内容はコピーされません（抽出されるのはビジュアルデザインのみ）
-- 元テンプレートにJavaScriptや`<table>`レイアウトがあっても、出力はスキルの制約ルールに従います
-
-### ワークフロー
-
-`/slidekit-create` は2つのモードで動作します:
-
-**テンプレートモード** — `references/templates/` にカスタムテンプレートがあり、ユーザーが使用を選択した場合。デザイン関連のヒアリングがスキップされ、コンテンツに関する質問のみが行われます。テンプレートのデザインをそのまま使うか、一部変更するかを確認します。
-
-**通常モード** — テンプレートがない場合、またはユーザーが使用しないと選択した場合。スタイル・テーマ・カラーなどを含むフルヒアリングが行われます。
-
-どちらのモードでも、ヒアリングは**一問一答形式**で進行します。選択肢のある質問は番号で回答し、タイトルや会社名など自由記述が必要な項目のみテキストで入力します。
-
-| Phase | 名前 | 説明 |
-|-------|------|------|
-| 0 | テンプレート検出・選択 | `templates/` を確認し、テンプレートモード or 通常モードを決定 |
-| 1 | ヒアリング | モードに応じた質問でスライドの要件を確認 |
-| 2 | デザイン決定 | カラーパレット（3〜4色）、フォントペア（日本語＋欧文）、ブランドアイコンを決定 |
-| 3 | スライド構成の設計 | 各スライドの役割・レイアウトパターンを計画 |
-| 4 | HTML生成 | 全スライドを `001.html` 〜 `NNN.html` として出力 |
-| 5 | print.html生成 | 全スライドをiframeで並べた印刷用ページを出力 |
-| 6 | チェックリスト確認 | 制約・品質基準への適合を検証 |
-| 7 | PPTX変換（任意） | `/pptx` スキルがあれば PowerPoint に変換（後述） |
-
-### 使い方
-
-Claude Code で以下のように呼び出します:
-
-```
-/slidekit-create
-```
-
-または自然言語で依頼できます:
-
-```
-プレゼン資料を作ってください
-```
-
----
-
-## slidekit-templ
-
-既存のPDFプレゼンテーションからHTMLスライドテンプレートを作成するスキルです。
-
-生成したテンプレートは `slidekit-create` のカスタムテンプレートとして登録でき、既存資料のデザインを踏襲した新しいスライドを作成できます。
-
-### 特徴
-
-- PDFの各ページをスクリーンショット化し、Claudeがそれを見ながらHTMLを再現
-- `slidekit-create` のデザインシステムに準拠したHTML出力
-- 色・テキスト・レイアウトを元のPDFに忠実に再現
-- 変換後のビジュアルQAプロセスを内蔵
-
-### 変換パイプライン
-
-```
-PDF → (pdftoppm) → スライド画像（JPEG）
-                        ↓
-    Claude が各画像を読み取り → HTMLを作成
-                        ↓
-         001.html, 002.html, ... + print.html
-```
-
-### 前提条件
-
-**Poppler**（`pdftoppm` コマンド）が必要です:
+#### テンプレートの使い方
 
 ```bash
-# macOS
-brew install poppler
-
-# Ubuntu / Debian
-sudo apt-get install poppler-utils
-
-# Windows (chocolatey)
-choco install poppler
+# 例: navy-gold テンプレートを登録
+cp -r slide-templates/abc-navy/ ~/.claude/skills/slidekit-create/references/templates/abc-navy/
 ```
 
-### 使い方
-
-Claude Code で以下のように呼び出します:
-
-```
-/slidekit-templ
-```
-
-または自然言語で依頼できます:
-
-```
-このPDFからテンプレートを作ってください: ./presentation.pdf
-```
-
-### ワークフロー
-
-1. **スライド画像の生成** — PDFを `pdftoppm` でJPEG画像に変換
-2. **デッキ分析** — 全スライド画像を読み取り、カラーパレット・フォント・ヘッダー/フッターのパターンを特定
-3. **デザインシステムの読み込み** — `slidekit-create` のルール・パターンを参照
-4. **HTML生成** — 各スライド画像を見ながら、最も近いレイアウトパターンを選択してHTMLを作成
-5. **print.html生成** — 全スライドの一覧表示用ページを出力
-6. **ビジュアルQA** — 生成したHTMLと元のスクリーンショットを比較し、差異があれば修正
-7. **PPTX変換（任意）** — `/pptx` スキルがあれば PowerPoint に変換可能（手順は下記セクションを参照）
-
-### テンプレートとして登録する
-
-`slidekit-templ` で生成したHTMLの中から、デザインの参考にしたいファイルを選んでコピーします:
-
-```bash
-# 直接配置する場合
-cp output/templ/003.html ~/.claude/skills/slidekit-create/references/templates/
-
-# サブディレクトリで管理する場合（複数テンプレートセット向き）
-mkdir -p ~/.claude/skills/slidekit-create/references/templates/my-design
-cp output/templ/*.html ~/.claude/skills/slidekit-create/references/templates/my-design/
-```
-
-登録後、`/slidekit-create` を実行するとテンプレートが検出され、使用するかどうかを確認されます。
-
----
-
-## HTML から PowerPoint（PPTX）への変換
-
-`slidekit-create` および `slidekit-templ` が生成するのはHTMLファイルです。最終的にPowerPointファイル（`.pptx`）として使いたい場合は、別途 `/pptx` スキルを使って変換します。
-
-### 事前準備
-
-`/pptx` スキルをインストールしておきます（SlideKitには含まれていません）:
-
-```bash
-claude install-skill https://github.com/anthropics/claude-code-agent-skills/tree/main/skills/pptx
-```
-
-### 変換手順
-
-**方法A: ワークフロー内で自動変換**
-
-`/slidekit-create` のワークフロー完了後、Claude が「PPTXに変換しますか？」と確認します。「はい」と答えれば `/pptx` スキルが自動で呼び出され、HTMLからPowerPointに変換されます。
-
-**方法B: 手動で変換**
-
-既にHTMLスライドが生成済みの場合は、Claude Code で直接依頼できます:
-
-```
-output/slide-page01/ のHTMLスライドをPPTXに変換してください
-```
-
-または `/pptx` スキルを直接呼び出します:
-
-```
-/pptx
-```
-
-### 変換の全体像
-
-```
-/slidekit-create                         /pptx
-        │                                    │
-  テンプレート検出                       HTMLファイルを読み取り
-        ↓                                    ↓
-  ヒアリング（モードに応じ簡略化）      各スライドのDOM・CSSを解析
-        ↓                                    ↓
-  HTMLスライド生成                       PowerPoint要素に変換
-        ↓                                    ↓
-  001.html ~ NNN.html ──────→  presentation.pptx を出力
-  + print.html
-```
-
-PDF からの場合:
-
-```
-PDF ──→ /slidekit-templ ──→ HTML ──→ /pptx ──→ PPTX
-```
-
-> **なぜHTMLを経由するのか:**
-> PDFから直接PPTXに変換するのではなく、一度HTMLを経由することで、PPTX変換しやすいDOM構造を確保しつつ、HTMLの段階で内容の確認・修正が行えます。
-
-### 注意事項
-
-- HTMLのDOM構造がPPTX変換精度に直結します。SlideKit はPPTX変換を前提としたルール（テキストは `<p>` / `<h*>` を使う、flexテーブルを使う、`::before` / `::after` にテキストを入れない等）を守ってHTMLを生成するため、高い変換精度が得られます
-- 複雑なCSSグラデーションや Chart.js のチャート（`<canvas>` 要素）など一部の装飾はスクリーンショットとして埋め込まれる場合があります
-- `/pptx` スキルがインストールされていない場合、変換はスキップされます
+登録後、`/slidekit-create` を実行するとテンプレートが検出されます。詳細は [slide-templates/README.md](slide-templates/README.md) を参照してください。
 
 ---
 
 ## ディレクトリ構成
 
 ```
-claude-code-skills/              （リポジトリ名）
-├── README.md
+SlideKit/
+├── README.md                        ← このファイル
 ├── skills/
-│   ├── slidekit-create/         # /slidekit-create
-│   │   ├── SKILL.md             # スキル定義（ルール・制約・ワークフロー）
+│   ├── slidekit-create/             # /slidekit-create スキル
+│   │   ├── SKILL.md                 #   スキル定義（ワークフロー・制約・ルール）
 │   │   └── references/
-│   │       ├── patterns.md      # 43レイアウトパターンのDOMツリーとコンポーネント集
-│   │       └── templates/       # カスタムテンプレート置き場
-│   │           ├── README.md    # テンプレートの使い方
-│   │           └── {name}/      # サブディレクトリで複数テンプレートセットを管理可能
-│   └── slidekit-templ/          # /slidekit-templ
-│       ├── SKILL.md             # スキル定義（変換パイプライン・QAプロセス）
-│       └── scripts/
-│           └── pdf_to_images.py # PDF→JPEG変換スクリプト（pdftoppm利用）
-├── slide-templates/             # 付属HTMLテンプレート集（11種類）
-│   ├── README.md                # 一覧・説明・slidekit-create への配置手順
-│   ├── abc-navy/
-│   ├── venture-split/
-│   ├── biz-plan-blue/
-│   └── ...                      # その他8種類
-└── .gitignore
+│   │       ├── index-template.html  #   ビューアのテンプレート
+│   │       ├── patterns.md          #   43レイアウトパターンのDOM定義
+│   │       └── templates/           #   カスタムテンプレート置き場
+│   ├── slidekit-templ/              # /slidekit-templ スキル
+│   │   ├── SKILL.md
+│   │   └── scripts/
+│   │       └── pdf_to_images.py     #   PDF → JPEG 変換スクリプト
+│   ├── pptx/                        # /pptx スキル
+│   ├── imgen/                       # /imgen スキル
+│   └── WORKFLOW.md                  # スキル間連携の説明
+├── slide-templates/                 # 付属テンプレート集（11種類）
+├── examples/                        # 生成サンプル
+│   ├── slide-page01/                #   18枚のサンプルデッキ
+│   └── slide-page02/                #   20枚のサンプルデッキ
+└── docs/
 ```
 
-## 動作環境
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) がインストール済みであること
-- `slidekit-templ` を使う場合は Poppler（`pdftoppm`）が必要
-- PPTX変換を行う場合は別途 [`pptx` スキル](https://github.com/anthropics/claude-code-agent-skills/tree/main/skills/pptx) のインストールが必要
+---
 
 ## よくある質問
 
 ### スキルはどこにインストールされますか？
 
-`~/.claude/skills/` 配下にインストールされます:
+`~/.claude/skills/` 配下にインストールされます。
 
 ```
 ~/.claude/skills/slidekit-create/SKILL.md
 ~/.claude/skills/slidekit-templ/SKILL.md
+~/.claude/skills/pptx/SKILL.md
+~/.claude/skills/imgen/SKILL.md
 ```
 
-### スキルをアンインストールするには？
+### 生成されたスライドをブラウザでプレゼンするには？
 
-`~/.claude/skills/` 内の該当ディレクトリを削除してください:
+生成される `index.html` をブラウザで開いてください。矢印キーでスライド送り、F キーでフルスクリーン、PDF ボタンで印刷できます。
 
-```bash
-rm -rf ~/.claude/skills/slidekit-create
-rm -rf ~/.claude/skills/slidekit-templ
-```
+### HTMLスライドをPDF化するには？
 
-### 生成されたHTMLをPowerPointに変換できますか？
-
-はい。詳しい手順は [HTML から PowerPoint（PPTX）への変換](#html-から-powerpointpptxへの変換) セクションをご覧ください。
-
-### HTMLスライドを印刷・PDF化するには？
-
-生成される `print.html` をブラウザで開き、ブラウザの印刷機能（Ctrl/Cmd + P）から「PDFとして保存」を選択してください。
+`index.html` をブラウザで開き、PDF ボタンをクリック、またはブラウザの印刷機能（Ctrl/Cmd + P）から「PDFとして保存」を選択してください。「背景のグラフィック」をON、余白を「なし」に設定すると綺麗に出力されます。
 
 ### slidekit-templ と slidekit-create の違いは？
 
 | | slidekit-templ | slidekit-create |
 |---|---|---|
 | **入力** | 既存のPDFファイル | ユーザーへのヒアリング |
-| **目的** | PDFのデザインをHTMLで再現し、テンプレート化 | 新しいスライドをゼロから作成 |
-| **用途** | 既存資料のデザインを流用したいとき | 新しいプレゼン資料を作りたいとき |
+| **目的** | PDFのデザインをHTMLで再現 | 新しいスライドをゼロから作成 |
+| **用途** | 既存資料のデザインを流用したいとき | 新しいプレゼンを作りたいとき |
 
 2つを組み合わせると、既存PDFのデザインを踏襲しつつ新しい内容のスライドを作成できます。
+
+---
 
 ## ライセンス
 

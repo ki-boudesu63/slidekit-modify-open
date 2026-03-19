@@ -107,7 +107,7 @@ cp slide-templates/abc-navy/005.html ~/.claude/skills/slidekit-create/references
 
 ```bash
 TEMPLATES_DIR=~/.claude/skills/slidekit-create/references/templates
-SLIDE_TEMPLATES=/path/to/claude-code-skills/slide-templates
+SLIDE_TEMPLATES=/path/to/SlideKit/slide-templates
 
 # 全テンプレートを配置（各テンプレートは先頭5ファイルのみが読み込まれる）
 for name in abc-navy venture-split biz-plan-blue greenfield novatech skyline \
