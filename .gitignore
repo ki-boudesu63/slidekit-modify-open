@@ -1,5 +1,9 @@
 .DS_Store
 output/
+test_output/
+mizuno_slides/
 docs/private/
 .vscode/
 .smart-edit/
+__pycache__/
+*.pyc
