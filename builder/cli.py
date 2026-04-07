@@ -21,6 +21,7 @@ from pathlib import Path
 from .content_bundle import ContentBundle
 from .scanners import FolderScanner, PDFScanner, TextScanner, PlanScanner
 from .slidekit_builder import SlideKitBuilder
+from .md_exporter import export_md
 
 # プロジェクトルート（slidekit/）
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -55,6 +56,11 @@ def main() -> None:
         "--theme", "-t",
         default=None,
         help="テーマ名（academic-blue / medical-teal / modern-minimal）",
+    )
+    parser.add_argument(
+        "--export-md",
+        action="store_true",
+        help="スライド生成せず、Markdown ファイルのみ書き出す（slidekit-create に渡す用）",
     )
 
     args = parser.parse_args()
@@ -93,6 +99,14 @@ def main() -> None:
     # テーマ上書き
     if args.theme:
         bundle.theme = args.theme
+
+    # Markdown エクスポートモード
+    if args.export_md:
+        md_path = output_dir / "content.md"
+        result = export_md(bundle, md_path)
+        print(f"Markdown 出力: {result}")
+        print(f"  → /slidekit-create で読み込んでスライドを作成できます")
+        return
 
     # ビルド
     builder = SlideKitBuilder()

@@ -286,6 +286,47 @@ npx agent-browser batch "open file:///D:/development/slidekit/output/index.html"
 
 ---
 
+## 高品質モード: slidekit-create 連携
+
+デザインの自由度を最大化したい場合は、`--export-md` で Markdown を書き出し、`/slidekit-create` に渡す。
+
+### フロー
+
+```
+PDF → python -m builder paper.pdf --export-md
+        ↓
+    output/<名前>_日時/
+    ├── content.md    ← 論文内容 + 画像パス入り Markdown
+    └── images/       ← 抽出画像
+        ↓
+    Claude が content.md を読み、必要に応じてメタ情報を修正
+        ↓
+    /slidekit-create で Phase 1「参考ファイル」として content.md を指定
+        ↓
+    43パターンから最適なレイアウトを選んで HTML 生成
+```
+
+### コマンド
+
+```bash
+cd D:\development\slidekit
+
+# 1. Markdown + 画像を書き出す
+python -m builder paper.pdf --export-md
+
+# 2. Claude に content.md を渡して slidekit-create を起動
+#    → Phase 1 で「参考ファイル」として content.md のパスを指定
+#    → Phase 2 でデザイン（スタイル・テーマ・カラー）を決定
+#    → Phase 3〜4 で 43 パターンからスライドを生成
+```
+
+### 注意
+
+- PDF からの自動抽出ではメタ情報（タイトル・著者・所属）がずれる場合がある。Claude が content.md を読んだ際に正しく修正すること。
+- 画像は `output/<名前>/images/` に抽出済みなので、slidekit-create の出力先を同じフォルダにすれば画像パスがそのまま使える。
+
+---
+
 ## 使い方の例
 
 ### 例1: 論文 PDF からスライド作成
