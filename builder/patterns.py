@@ -478,6 +478,10 @@ def render_poster(
     col_map = COLUMN_MAP_3 if cols == 3 else COLUMN_MAP_2
     t = get_theme(theme_name)
 
+    # slide_plan.json がある場合はそこからセクションを構築
+    if bundle._plan_slides:
+        return _render_plan_poster(bundle, size, theme_name)
+
     # セクションをカラムに振り分け
     ordered = get_ordered_sections(bundle.sections)
     columns: list[list[tuple[str, str]]] = [[] for _ in range(cols)]
@@ -603,6 +607,106 @@ def render_poster(
     </div>"""
 
     # 組み立て
+    body = f"""<div class="poster bg-white flex flex-col">
+{header_html}
+    <div class="flex-1 grid grid-cols-{cols} gap-6 {s['pad']}">
+{cols_html}    </div>
+{footer_html}
+</div>"""
+
+    return _poster_boilerplate(bundle.title, theme_name, size, body)
+
+
+def _render_plan_poster(bundle, size: str, theme_name: str) -> str:
+    """slide_plan.json のスライド定義からポスターを生成する。
+
+    plan の各スライド（title/conclusion 除く）をセクションとして扱い、
+    カラムに均等に振り分ける。
+    """
+    from .content_bundle import text_to_html
+
+    s = POSTER_SIZES.get(size, POSTER_SIZES["a0"])
+    cols = s["cols"]
+
+    # plan からセクション（title/conclusion/section-break 除く）を抽出
+    sections = []
+    for slide in bundle._plan_slides:
+        stype = slide.get("type", "")
+        if stype in ("title", "conclusion", "section-break"):
+            continue
+        heading = slide.get("heading", "")
+        body = slide.get("body", "")
+        image = slide.get("image", "")
+        caption = slide.get("image_caption", "")
+        table_html = slide.get("table_html", "")
+        table_caption = slide.get("table_caption", "")
+        sections.append({
+            "heading": heading,
+            "body": body,
+            "image": image,
+            "caption": caption,
+            "table_html": table_html,
+            "table_caption": table_caption,
+        })
+
+    # セクションをカラムに均等に振り分け
+    columns: list[list[dict]] = [[] for _ in range(cols)]
+    for i, sec in enumerate(sections):
+        columns[i % cols].append(sec)
+
+    # カラム HTML 生成
+    cols_html = ""
+    for col_sections in columns:
+        sections_html = ""
+        for sec in col_sections:
+            body_html = text_to_html(sec["body"]) if sec["body"] else ""
+
+            # メディア
+            media = ""
+            if sec["image"]:
+                media += f"""<figure class="my-3 text-center">
+                    <img src="{esc(sec['image'])}" alt="{esc(sec['caption'])}" class="max-w-full rounded shadow-sm mx-auto" style="max-height: 200mm;" />
+                    <figcaption class="text-xs text-gray-500 mt-1">{esc(sec['caption'])}</figcaption>
+                </figure>\n"""
+            if sec["table_html"]:
+                styled_table = _style_table_html(sec["table_html"])
+                media += f"""<div class="my-3 overflow-auto">
+                    <p class="text-xs text-gray-500 mb-1">{esc(sec['table_caption'])}</p>
+                    {styled_table}
+                </div>\n"""
+
+            sections_html += _poster_section(sec["heading"], body_html, media)
+
+        cols_html += f"""    <div class="flex flex-col">\n{sections_html}    </div>\n"""
+
+    # ヘッダー
+    date_html = f'<p class="text-sm opacity-60 mt-2">{esc(bundle.date)}</p>' if bundle.date else ""
+    subtitle_html = f'<p class="{s["body"]} opacity-75 mt-1">{esc(bundle.subtitle)}</p>' if bundle.subtitle else ""
+
+    header_html = f"""    <div class="bg-brand-dark text-white px-12 py-10">
+        <h1 class="{s["title"]} font-black leading-tight mb-3">{esc(bundle.title)}</h1>
+        <p class="text-lg opacity-90">{esc(bundle.authors)}</p>
+        <p class="{s["body"]} opacity-75">{esc(bundle.affiliation)}</p>
+        {subtitle_html}
+        {date_html}
+    </div>"""
+
+    # フッター
+    footer_html = f"""    <div class="border-t-2 border-brand-accent px-12 py-6 grid grid-cols-3 gap-8 items-start">
+        <div>
+            <h3 class="text-sm font-bold text-brand-accent mb-1">参考文献</h3>
+            <p class="text-xs text-gray-500">【参考文献をここに記載】</p>
+        </div>
+        <div class="text-center">
+            <p class="text-xs text-gray-400">QR コード</p>
+        </div>
+        <div class="text-right">
+            <h3 class="text-sm font-bold text-brand-accent mb-1">連絡先</h3>
+            <p class="text-xs text-gray-600">{esc(bundle.authors)}</p>
+            <p class="text-xs text-gray-500">{esc(bundle.affiliation)}</p>
+        </div>
+    </div>"""
+
     body = f"""<div class="poster bg-white flex flex-col">
 {header_html}
     <div class="flex-1 grid grid-cols-{cols} gap-6 {s['pad']}">
