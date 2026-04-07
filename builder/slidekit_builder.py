@@ -20,14 +20,16 @@ from . import patterns
 class SlideKitBuilder:
     """ContentBundle から SlideKit 形式の HTML スライドを生成する"""
 
-    def build(self, bundle: ContentBundle, output_dir: Path | None = None) -> str:
+    def build(
+        self,
+        bundle: ContentBundle,
+        output_dir: Path | None = None,
+        poster_size: str | None = None,
+    ) -> str:
         """
-        スライドを生成し、出力ディレクトリパスを返す。
+        スライドまたはポスターを生成し、出力ディレクトリパスを返す。
 
-        1. ディレクトリ作成 + 画像コピー
-        2. スライド HTML 生成
-        3. 個別ファイル書き出し
-        4. index.html 生成
+        poster_size が指定されていれば（"a0" / "a1"）ポスターモードで生成。
         """
         out = Path(output_dir) if output_dir else Path(bundle.output_dir)
         out.mkdir(parents=True, exist_ok=True)
@@ -37,15 +39,20 @@ class SlideKitBuilder:
         # 画像を出力ディレクトリにコピー
         self._copy_images(bundle, images_out)
 
-        # スライド生成
+        # ポスターモード
+        if poster_size:
+            html = patterns.render_poster(bundle, size=poster_size, theme_name=bundle.theme)
+            (out / "poster.html").write_text(html, encoding="utf-8")
+            print(f"生成完了: ポスター（{poster_size.upper()}） → {out}/poster.html")
+            return str(out)
+
+        # スライドモード
         slides = self._render(bundle)
 
-        # 個別ファイル書き出し
         for i, (_, html) in enumerate(slides):
             filename = f"{i + 1:03d}.html"
             (out / filename).write_text(html, encoding="utf-8")
 
-        # index.html 生成
         self._write_index(out, bundle.title, len(slides))
 
         total = len(slides)

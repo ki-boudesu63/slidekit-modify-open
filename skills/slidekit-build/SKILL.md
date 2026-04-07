@@ -358,7 +358,25 @@ Claude:
      slide_plan.json を手動設計 → ビルダー実行
 ```
 
-### 例3: テキストからスライド作成
+### 例3: 学会ポスター作成
+
+```
+ユーザー: この論文でポスターを作って
+         PDF/paper.pdf
+
+Claude:
+  1. PDF を読み取り
+  2. python -m builder paper.pdf --poster
+  3. ブラウザで poster.html を開いて確認
+  4. Ctrl+P → A0 サイズで PDF 保存
+```
+
+A1 サイズの場合:
+```bash
+python -m builder paper.pdf --poster --size a1
+```
+
+### 例4: テキストからスライド作成
 
 ```
 ユーザー: この内容でゼミ発表スライドを作って

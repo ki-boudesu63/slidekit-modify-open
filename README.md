@@ -14,6 +14,7 @@
 | **/slidekit-build** | Claude が構成設計 → slide_plan.json 作成 → ビルダー実行するスキル |
 | **/slide-check** | agent-browser による対話的スライド確認・修正スキル |
 | **--export-md** | PDF 内容を Markdown に書き出し、`/slidekit-create` に渡す高品質モード |
+| **--poster** | 学会ポスター生成（A0 3カラム / A1 2カラム、Tailwind grid） |
 | **言語選択** | `/slidekit-create`, `/slidekit-build` に日本語/英語選択ステップを追加 |
 | **awesome-design-md** | Stripe, Notion 等のデザインシステム参照（submodule） |
 
@@ -39,6 +40,10 @@ python -m builder paper.pdf --export-md          # Markdown + 画像を書き出
 # ── オプション ──
 python -m builder paper.pdf --theme medical-teal # テーマ指定
 python -m builder paper.pdf --output ./my_deck/  # 出力先指定
+
+# ── ポスター生成 ──
+python -m builder paper.pdf --poster             # A0 3カラム（デフォルト）
+python -m builder paper.pdf --poster --size a1   # A1 2カラム
 
 # ── Claude Code スキル ──
 # /slidekit-create    対話的スライド新規作成（43 パターン）

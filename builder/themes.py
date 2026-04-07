@@ -51,7 +51,8 @@ def get_theme_css(name: str) -> str:
 .text-brand-accent {{ color: {t["brand_accent"]}; }}
 .border-brand-accent {{ border-color: {t["brand_accent"]}; }}
 .bg-brand-warm {{ background-color: {t["brand_warm"]}; }}
-.text-brand-warm {{ color: {t["brand_warm"]}; }}"""
+.text-brand-warm {{ color: {t["brand_warm"]}; }}
+.poster {{ position: relative; }}"""
 
 
 def get_google_fonts_url(name: str) -> str:

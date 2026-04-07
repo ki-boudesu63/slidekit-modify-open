@@ -393,3 +393,221 @@ def render_conclusion_slide(
     </div>"""
 
     return _boilerplate("謝辞", theme_name, body)
+
+
+# ──────────────────────────────────────────────────
+# ポスター生成
+# ──────────────────────────────────────────────────
+
+# ポスターサイズ定義
+POSTER_SIZES = {
+    "a0": {"width": "841mm", "height": "1189mm", "cols": 3, "title": "text-4xl", "body": "text-sm", "pad": "p-8"},
+    "a1": {"width": "594mm", "height": "841mm",  "cols": 2, "title": "text-3xl", "body": "text-xs", "pad": "p-6"},
+}
+
+# セクション→カラム割り当て
+COLUMN_MAP_3 = {
+    0: ["background", "objective", "introduction", "methods"],
+    1: ["results"],
+    2: ["discussion", "conclusion", "references", "acknowledgements"],
+}
+COLUMN_MAP_2 = {
+    0: ["background", "objective", "introduction", "methods"],
+    1: ["results", "discussion", "conclusion"],
+}
+
+
+def _poster_boilerplate(title: str, theme_name: str, size: str, body_html: str) -> str:
+    """ポスター用の完全な HTML ドキュメントを生成する"""
+    from .themes import get_theme_css, get_google_fonts_url
+    theme_css = get_theme_css(theme_name)
+    fonts_url = get_google_fonts_url(theme_name)
+    s = POSTER_SIZES.get(size, POSTER_SIZES["a0"])
+
+    return f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>{esc(title)}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet" />
+    <link href="{fonts_url}" rel="stylesheet" />
+    <style>
+        {theme_css}
+        @page {{ size: {s["width"]} {s["height"]}; margin: 0; }}
+        html, body {{ margin: 0; padding: 0; background: #e0e0e0; }}
+        .poster {{ width: {s["width"]}; min-height: {s["height"]}; margin: 20px auto; box-shadow: 0 4px 32px rgba(0,0,0,0.2); }}
+        @media print {{
+            html, body {{ background: none; }}
+            .poster {{ margin: 0; box-shadow: none; }}
+            .no-print {{ display: none !important; }}
+        }}
+    </style>
+</head>
+<body>
+    <button class="no-print" onclick="window.print()" style="position:fixed;bottom:20px;right:20px;z-index:9999;background:#333;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;cursor:pointer;">PDF 保存</button>
+    {body_html}
+</body>
+</html>"""
+
+
+def _poster_section(heading: str, body_html: str, media_html: str = "") -> str:
+    """ポスターのセクションブロック"""
+    styled = _style_body_html(body_html) if body_html else ""
+    return f"""        <div class="mb-6">
+            <h2 class="text-lg font-bold text-white bg-brand-accent px-4 py-2 rounded-t-lg">{esc(heading)}</h2>
+            <div class="bg-white border border-gray-200 rounded-b-lg px-4 py-3">
+                {styled}
+                {media_html}
+            </div>
+        </div>"""
+
+
+def render_poster(
+    bundle,
+    size: str = "a0",
+    theme_name: str = "academic-blue",
+) -> str:
+    """学会ポスターを生成する（A0: 3カラム / A1: 2カラム）"""
+    from .content_bundle import ContentBundle, ImageEntry, ChartEntry, TableEntry, text_to_html
+    from .section_splitter import get_ordered_sections, section_to_label
+
+    s = POSTER_SIZES.get(size, POSTER_SIZES["a0"])
+    cols = s["cols"]
+    col_map = COLUMN_MAP_3 if cols == 3 else COLUMN_MAP_2
+    t = get_theme(theme_name)
+
+    # セクションをカラムに振り分け
+    ordered = get_ordered_sections(bundle.sections)
+    columns: list[list[tuple[str, str]]] = [[] for _ in range(cols)]
+
+    for section_name, content in ordered:
+        placed = False
+        for col_idx, allowed in col_map.items():
+            if section_name in allowed:
+                columns[col_idx].append((section_name, content))
+                placed = True
+                break
+        if not placed:
+            # 未分類のセクションは最後のカラムに
+            columns[-1].append((section_name, content))
+
+    # リソースキュー
+    image_queue = list(bundle.images)
+    chart_queue = list(bundle.charts)
+    table_queue = list(bundle.tables)
+
+    # カラム HTML 生成
+    cols_html = ""
+    for col_idx in range(cols):
+        sections_html = ""
+        for section_name, content in columns[col_idx]:
+            heading = section_to_label(section_name, bundle.language)
+            body = text_to_html(content)
+
+            # メディア配置
+            media = ""
+            if section_name == "results" and image_queue:
+                # 結果セクションに画像を最大2枚配置
+                for _ in range(min(2, len(image_queue))):
+                    img = image_queue.pop(0)
+                    media += f"""<figure class="my-3 text-center">
+                    <img src="{esc(img.rel_path)}" alt="{esc(img.caption)}" class="max-w-full rounded shadow-sm mx-auto" style="max-height: 200mm;" />
+                    <figcaption class="text-xs text-gray-500 mt-1">{esc(img.caption)}</figcaption>
+                </figure>\n"""
+                if chart_queue:
+                    chart = chart_queue.pop(0)
+                    media += f"""<figure class="my-3 text-center">
+                    <img src="{esc(chart.rel_path)}" alt="{esc(chart.caption)}" class="max-w-full mx-auto" />
+                    <figcaption class="text-xs text-gray-500 mt-1">{esc(chart.caption)}</figcaption>
+                </figure>\n"""
+            elif section_name == "methods" and table_queue:
+                table = table_queue.pop(0)
+                styled_table = _style_table_html(table.html)
+                media += f"""<div class="my-3 overflow-auto">
+                    <p class="text-xs text-gray-500 mb-1">{esc(table.caption)}</p>
+                    {styled_table}
+                </div>\n"""
+                if image_queue:
+                    img = image_queue.pop(0)
+                    media += f"""<figure class="my-3 text-center">
+                    <img src="{esc(img.rel_path)}" alt="{esc(img.caption)}" class="max-w-full rounded shadow-sm mx-auto" style="max-height: 150mm;" />
+                    <figcaption class="text-xs text-gray-500 mt-1">{esc(img.caption)}</figcaption>
+                </figure>\n"""
+            elif image_queue and section_name not in ("references", "acknowledgements"):
+                img = image_queue.pop(0)
+                media += f"""<figure class="my-3 text-center">
+                    <img src="{esc(img.rel_path)}" alt="{esc(img.caption)}" class="max-w-full rounded shadow-sm mx-auto" style="max-height: 150mm;" />
+                    <figcaption class="text-xs text-gray-500 mt-1">{esc(img.caption)}</figcaption>
+                </figure>\n"""
+
+            sections_html += _poster_section(heading, body, media)
+
+        cols_html += f"""    <div class="flex flex-col">\n{sections_html}    </div>\n"""
+
+    # 余ったリソース → 最終カラムに追加セクション
+    extra_media = ""
+    for img in image_queue:
+        extra_media += f"""<figure class="my-3 text-center">
+            <img src="{esc(img.rel_path)}" alt="{esc(img.caption)}" class="max-w-full rounded shadow-sm mx-auto" style="max-height: 150mm;" />
+            <figcaption class="text-xs text-gray-500 mt-1">{esc(img.caption)}</figcaption>
+        </figure>\n"""
+    for chart in chart_queue:
+        extra_media += f"""<figure class="my-3 text-center">
+            <img src="{esc(chart.rel_path)}" alt="{esc(chart.caption)}" class="max-w-full mx-auto" />
+            <figcaption class="text-xs text-gray-500 mt-1">{esc(chart.caption)}</figcaption>
+        </figure>\n"""
+    for table in table_queue:
+        styled_table = _style_table_html(table.html)
+        extra_media += f"""<div class="my-3 overflow-auto">
+            <p class="text-xs text-gray-500 mb-1">{esc(table.caption)}</p>
+            {styled_table}
+        </div>\n"""
+
+    if extra_media:
+        cols_html = cols_html.rstrip()
+        # 最終カラムの閉じタグ前に追加
+        extra_section = _poster_section("追加資料", "", extra_media)
+        # 最後のカラムに挿入
+        last_close = cols_html.rfind("    </div>")
+        if last_close >= 0:
+            cols_html = cols_html[:last_close] + extra_section + "\n    </div>\n"
+
+    # ヘッダー
+    date_html = f'<p class="text-sm opacity-60 mt-2">{esc(bundle.date)}</p>' if bundle.date else ""
+    subtitle_html = f'<p class="{s["body"]} opacity-75 mt-1">{esc(bundle.subtitle)}</p>' if bundle.subtitle else ""
+
+    header_html = f"""    <div class="bg-brand-dark text-white px-12 py-10">
+        <h1 class="{s["title"]} font-black leading-tight mb-3">{esc(bundle.title)}</h1>
+        <p class="text-lg opacity-90">{esc(bundle.authors)}</p>
+        <p class="{s["body"]} opacity-75">{esc(bundle.affiliation)}</p>
+        {subtitle_html}
+        {date_html}
+    </div>"""
+
+    # フッター
+    footer_html = f"""    <div class="border-t-2 border-brand-accent px-12 py-6 grid grid-cols-3 gap-8 items-start">
+        <div>
+            <h3 class="text-sm font-bold text-brand-accent mb-1">参考文献</h3>
+            <p class="text-xs text-gray-500">【参考文献をここに記載】</p>
+        </div>
+        <div class="text-center">
+            <p class="text-xs text-gray-400">QR コード</p>
+        </div>
+        <div class="text-right">
+            <h3 class="text-sm font-bold text-brand-accent mb-1">連絡先</h3>
+            <p class="text-xs text-gray-600">{esc(bundle.authors)}</p>
+            <p class="text-xs text-gray-500">{esc(bundle.affiliation)}</p>
+        </div>
+    </div>"""
+
+    # 組み立て
+    body = f"""<div class="poster bg-white flex flex-col">
+{header_html}
+    <div class="flex-1 grid grid-cols-{cols} gap-6 {s['pad']}">
+{cols_html}    </div>
+{footer_html}
+</div>"""
+
+    return _poster_boilerplate(bundle.title, theme_name, size, body)

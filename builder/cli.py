@@ -62,6 +62,17 @@ def main() -> None:
         action="store_true",
         help="スライド生成せず、Markdown ファイルのみ書き出す（slidekit-create に渡す用）",
     )
+    parser.add_argument(
+        "--poster",
+        action="store_true",
+        help="学会ポスターを生成する（デフォルト: A0 3カラム）",
+    )
+    parser.add_argument(
+        "--size",
+        default="a0",
+        choices=["a0", "a1"],
+        help="ポスターサイズ（a0: 3カラム / a1: 2カラム、デフォルト: a0）",
+    )
 
     args = parser.parse_args()
     input_path = Path(args.input)
@@ -110,7 +121,8 @@ def main() -> None:
 
     # ビルド
     builder = SlideKitBuilder()
-    result = builder.build(bundle, output_dir)
+    poster_size = args.size if args.poster else None
+    result = builder.build(bundle, output_dir, poster_size=poster_size)
     print(f"出力: {result}")
 
 
