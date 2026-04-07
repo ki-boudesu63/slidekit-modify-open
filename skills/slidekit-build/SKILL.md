@@ -1,113 +1,164 @@
 ---
 name: slidekit-build
-description: "論文PDF・研究テキスト・フォルダからSlideKit形式のHTMLスライドを自動生成する。Claude が内容を読み取り、最適なスライド構成を設計して slide_plan.json を作成し、ビルダーで HTML を生成する。'スライドを作って', '論文からスライド', 'slidekit build', 'プレゼン作成' で起動。"
+description: "論文PDF・研究テキスト・画像・Markdownから、学会スライドまたはポスターを自動生成する。Claude が内容を読み取り、最適な構成を設計して slide_plan.json を作成し、ビルダーで HTML を生成する。'スライドを作って', '論文からスライド', 'ポスター作って', 'slidekit build', 'プレゼン作成' で起動。"
 ---
 
-# SlideKit Build — 論文→スライド自動生成
+# SlideKit Build — 論文→スライド/ポスター自動生成
 
-論文 PDF・研究テキスト・フォルダの内容を Claude が読み取り、最適なスライド構成を設計して SlideKit 形式の HTML スライドを生成する。
+---
 
-## パイプライン
+## 出力モード
+
+ユーザーの依頼に応じて2つの出力モードがある。**最初に必ずどちらかを確認する。**
+
+| モード | 出力 | コマンド |
+|--------|------|---------|
+| **スライド** | 001.html〜NNN.html + index.html（矢印キー操作） | `python -m builder slide_plan.json` |
+| **ポスター** | poster.html 1枚（A0 or A1、印刷用） | `python -m builder slide_plan.json --poster` |
 
 ```
-入力（PDF / フォルダ / テキスト）
-    ↓
-Phase 1: 内容読み取り（Claude が PDF/テキストを読む）
-    ↓
-Phase 1.5: 言語確認（日本語 or 英語でスライドを作るか確認）
-    ↓
-Phase 2: スライド構成設計（Claude が slide_plan.json を作成）
-    ↓
-Phase 3: HTML 生成（python -m builder slide_plan.json）
-    ↓
-Phase 4: 確認・修正（/slide-check）
+ユーザーに聞く:
+  スライドとポスターのどちらを作成しますか？
+  1. スライド（学会口演・ゼミ発表）
+  2. ポスター（学会ポスター発表、A0/A1）
 ```
 
-## 依存
+ユーザーが「スライド作って」「ポスター作って」と明示していればスキップしてよい。
 
-```bash
-pip install pymupdf Pillow
-```
+---
+
+## 入力パターン
+
+ユーザーが提供する可能性がある入力形式は以下の通り。**どの形式でも同じワークフローで対応できる。**
+
+| 入力 | 説明 | Claude がやること |
+|------|------|-----------------|
+| **PDF** | 論文 PDF | テキストを Read で読む。画像を `extract_images.py` で抽出 |
+| **テキストファイル** (.txt / .md) | 研究ノートやドラフト | 内容を Read で読んでセクション構造を把握 |
+| **画像付き Markdown** (.md) | 本文 + `![caption](path)` で画像埋め込み | 内容を Read で読む。画像パスを slide_plan.json に転記 |
+| **フォルダ** | meta.json + テキスト + 画像 + CSV/Excel | フォルダ内容を確認してメタ情報と素材を把握 |
+| **画像のみ** | 実験結果の写真やグラフ | 画像パスを把握。テキストはユーザーに聞く or 生成 |
+| **口頭説明** | チャットで内容を直接説明 | テキストとして整理して slide_plan.json を設計 |
+
+### 画像の扱い
+
+- **PDF の場合**: まず画像を抽出する
+  ```bash
+  cd D:\development\slidekit
+  python builder/extract_images.py input.pdf output_dir/images/
+  cat output_dir/images/images_index.json
+  ```
+- **フォルダ / Markdown の場合**: ユーザーが指定したパスをそのまま使用
+- **slide_plan.json での画像参照**: `"image": "images/fig_p003_01.jpeg"` のように相対パスで指定
 
 ---
 
 ## ワークフロー
 
+```
+入力（PDF / テキスト / Markdown / フォルダ / 口頭）
+    ↓
+Phase 1: 内容読み取り
+    ↓
+Phase 1.5: 出力モード確認（スライド or ポスター）+ 言語確認（日本語 or 英語）
+    ↓
+Phase 2: 構成設計（slide_plan.json 作成）
+    ↓
+Phase 3: HTML 生成
+    ↓
+Phase 4: 確認・修正（/slide-check）
+```
+
 ### Phase 1: 内容読み取り
 
-ユーザーから入力を受け取り、内容を把握する。
-
 **PDF の場合:**
-1. PDF テキストを読む（Read ツールで直接、または PyMuPDF でテキスト抽出）
-2. 図版を確認（PDF 内の画像を把握）
-3. 論文の構造を理解（背景・目的・方法・結果・考察・結論）
+1. Read ツールで PDF を読む（テキスト抽出）
+2. 図版を `extract_images.py` で抽出
+3. 論文の構造を理解（Abstract / Introduction / Methods / Results / Discussion / Conclusion）
+
+**テキスト / Markdown の場合:**
+1. Read ツールで内容を読む
+2. Markdown 内の画像参照（`![caption](path)`）があればパスを記録
+3. セクション構造を把握
 
 **フォルダの場合:**
-1. フォルダ内のファイル一覧を確認
-2. meta.json があれば読む
-3. テキストファイル・画像・表・グラフを把握
+1. `ls` でファイル一覧を確認
+2. `meta.json` があれば読む（タイトル・著者・所属）
+3. テキスト・画像・表データの内容を把握
 
-**テキストの場合:**
-1. テキスト内容を読む
-2. セクション構造を把握
+**画像のみ / 口頭説明の場合:**
+1. 画像があれば Read で内容を確認
+2. ユーザーに研究の内容（背景・方法・結果・結論）を聞く
 
-### Phase 1.5: 言語確認
+### Phase 1.5: モード確認 + 言語確認
 
-**必ずユーザーに確認する。** 入力が英語論文でも、発表は日本語で行うケースが多い。
+**出力モード確認**（ユーザーが未指定の場合）:
+```
+スライドとポスターのどちらを作成しますか？
+1. スライド（学会口演・ゼミ発表）
+2. ポスター（学会ポスター発表、A0/A1）
+```
 
-確認の仕方:
+ポスターの場合、さらにサイズを確認:
+```
+ポスターサイズはどちらにしますか？
+1. A0（841×1189mm、3カラム）— 標準
+2. A1（594×841mm、2カラム）
+```
+
+**言語確認**（ユーザーが未指定の場合）:
 ```
 スライドの言語はどちらにしますか？
 1. 日本語（見出し・本文を日本語に翻訳）
 2. 英語（原文のまま）
 ```
 
-- **日本語を選んだ場合**: slide_plan.json の `heading` と `body` をすべて日本語で記述する。meta の `language` は `"ja"`。論文の専門用語は適宜カッコ書きで英語を併記する（例: 「間葉系幹細胞（MSC）」）。
-- **英語を選んだ場合**: 原文のまま使用。meta の `language` は `"en"`。
-- ユーザーが先に「日本語で」「英語で」と指定していた場合はこの確認をスキップしてよい。
+- 日本語の場合: 専門用語はカッコ書きで英語併記（例: 間葉系幹細胞（MSC））
+- ユーザーが先に「日本語で」「英語で」と指定していればスキップ
 
-### Phase 2: スライド構成設計
+### Phase 2: 構成設計
 
-内容に基づいて `slide_plan.json` を設計する。これが最も重要なフェーズ。
+#### スライドモードの場合
 
-#### 設計の原則
+slide_plan.json を設計する。
 
-1. **1スライド = 1メッセージ**: 各スライドに伝えたいことは1つだけ
-2. **テキストは最小限**: 箇条書き3〜5項目、本文は4段落以内
-3. **図表を活用**: 図や表がある場合は積極的に配置する
-4. **ストーリーフロー**: 背景→目的→方法→結果→考察→結論の流れを意識
-5. **スライド枚数**: 10分発表なら10〜15枚、20分なら15〜20枚が目安
+**設計の原則:**
+1. 1スライド = 1メッセージ
+2. テキストは箇条書き3〜5項目、本文は4段落以内
+3. 図表を積極的に活用
+4. 背景→目的→方法→結果→考察→結論のストーリーフロー
+5. 10分発表 → 10〜15枚、20分発表 → 15〜20枚
 
-#### スライド構成テンプレート
+**スライド構成テンプレート（基礎研究 15枚）:**
 
-**基礎研究（15枚）:**
 | # | type | 内容 |
 |---|------|------|
 | 1 | title | タイトル・著者・所属 |
 | 2 | text-only | 背景・問題提起 |
 | 3 | text-only | 研究目的・仮説 |
 | 4 | section-break | 方法 |
-| 5 | two-column | 実験材料・モデル（テキスト+図） |
-| 6 | two-column | 実験プロトコル（テキスト+フロー図） |
+| 5 | two-column | 実験材料（テキスト+図） |
+| 6 | two-column | プロトコル（テキスト+フロー図） |
 | 7 | section-break | 結果 |
-| 8 | figure-focus | 結果1（組織学的所見など） |
+| 8 | figure-focus | 結果1（組織学的所見） |
 | 9 | two-column | 結果2（定量データ+グラフ） |
 | 10 | figure-focus | 結果3（追加データ） |
 | 11 | section-break | 考察 |
-| 12 | text-only | 考察（解釈・先行研究との比較） |
+| 12 | text-only | 考察（解釈・比較） |
 | 13 | text-only | 限界・今後の課題 |
 | 14 | text-only | 結論 |
 | 15 | conclusion | 謝辞 |
 
 **臨床研究（12枚）:**
+
 | # | type | 内容 |
 |---|------|------|
 | 1 | title | タイトル |
 | 2 | text-only | 背景・臨床的意義 |
-| 3 | text-only | 目的・仮説 |
+| 3 | text-only | 目的 |
 | 4 | section-break | 方法 |
 | 5 | two-column | 対象・選択基準 |
-| 6 | data-table | 患者背景（テーブル） |
+| 6 | data-table | 患者背景 |
 | 7 | section-break | 結果 |
 | 8 | two-column | 主要アウトカム |
 | 9 | data-table | 統計結果 |
@@ -116,20 +167,103 @@ pip install pymupdf Pillow
 | 12 | conclusion | 謝辞 |
 
 **ゼミ・勉強会（10枚）:**
+
 | # | type | 内容 |
 |---|------|------|
 | 1 | title | タイトル |
-| 2 | text-only | 導入・論文の位置づけ |
-| 3 | text-only | 背景・先行研究 |
-| 4 | two-column | 方法の要点 |
-| 5 | figure-focus | 主要な結果1 |
-| 6 | figure-focus | 主要な結果2 |
-| 7 | text-only | 考察のポイント |
-| 8 | text-only | 限界・批判的考察 |
+| 2 | text-only | 導入 |
+| 3 | text-only | 背景 |
+| 4 | two-column | 方法 |
+| 5 | figure-focus | 結果1 |
+| 6 | figure-focus | 結果2 |
+| 7 | text-only | 考察 |
+| 8 | text-only | 限界 |
 | 9 | text-only | Take-home message |
 | 10 | conclusion | 謝辞 |
 
-#### slide_plan.json のスキーマ
+#### ポスターモードの場合
+
+同じ slide_plan.json を使うが、**セクション区切り（section-break）は不要**。ビルダーが title / conclusion を除くスライド定義をセクションとしてカラムに均等振り分けする。
+
+**ポスター用の構成テンプレート（8〜12セクション）:**
+
+| # | type | 内容 |
+|---|------|------|
+| 1 | title | タイトル（自動でヘッダーに配置） |
+| 2 | text-only | 背景・目的 |
+| 3 | text-only | 仮説 |
+| 4 | two-column | 方法（テキスト+実験スキーム図） |
+| 5 | figure-focus | 結果1（主要な図） |
+| 6 | figure-focus | 結果2 |
+| 7 | two-column | 結果3（定量データ+グラフ） |
+| 8 | text-only | 考察 |
+| 9 | text-only | 結論 |
+| 10 | conclusion | 謝辞（自動でフッターに配置） |
+
+**ポスター生成時の注意:**
+- A0（3カラム）: セクションが3カラムに均等に配置される
+- A1（2カラム）: セクションが2カラムに均等に配置される
+- 図は各セクション内に表示される（スライドとは異なり横並びではない）
+- テキスト量は多めでOK（ポスターは読むもの）
+
+### Phase 3: HTML 生成
+
+slide_plan.json を出力ディレクトリに保存し、ビルダーを実行する。
+
+**スライドの場合:**
+```bash
+cd D:\development\slidekit
+python -m builder slide_plan.json
+# → output/<名前>_日時/001.html〜NNN.html + index.html
+```
+
+**ポスターの場合:**
+```bash
+cd D:\development\slidekit
+python -m builder slide_plan.json --poster
+# → output/<名前>_日時/poster.html
+
+# A1 の場合
+python -m builder slide_plan.json --poster --size a1
+```
+
+**テーマ指定:**
+```bash
+python -m builder slide_plan.json --theme medical-teal
+```
+
+**重要: 画像ファイルの配置**
+
+slide_plan.json で `"image": "images/fig_xxx.jpeg"` と指定した場合、出力ディレクトリの `images/` に該当ファイルが必要。PDF から抽出した場合は自動でコピーされる。ユーザーが画像を直接指定した場合は手動でコピーする:
+
+```bash
+mkdir -p output/<名前>/images/
+cp /path/to/fig01.png output/<名前>/images/
+```
+
+### Phase 4: 確認・修正
+
+**スライドの場合:**
+```bash
+start output/<名前>/index.html
+# → / Space: 次、←: 前、F: 全画面、PDF ボタン: PDF保存
+```
+
+**ポスターの場合:**
+```bash
+start output/<名前>/poster.html
+# Ctrl+P → A0/A1 サイズで PDF 保存（「背景のグラフィック」ON）
+```
+
+修正が必要な場合:
+1. slide_plan.json を編集して再生成
+2. または `/slide-check` で個別 HTML を対話的に調整
+
+---
+
+## slide_plan.json スキーマ
+
+スライドモード・ポスターモード共通で使用する。
 
 ```json
 {
@@ -144,258 +278,148 @@ pip install pymupdf Pillow
     "language": "ja"
   },
   "slides": [
-    {
-      "type": "title"
-    },
-    {
-      "type": "text-only",
-      "heading": "背景",
-      "body": "気管軟骨欠損は...\n\n・従来の治療法には限界がある\n・新しいアプローチが求められている"
-    },
-    {
-      "type": "two-column",
-      "heading": "実験方法",
-      "body": "iPS細胞からMSCを誘導し...",
-      "image": "images/fig_p003_01.jpeg",
-      "image_caption": "Figure 1. iMSC 誘導プロトコル"
-    },
-    {
-      "type": "figure-focus",
-      "heading": "結果: 組織学的評価",
-      "body": "移植12週後の組織切片では...",
-      "image": "images/fig_p005_01.jpeg",
-      "image_caption": "Figure 3. HE・Alcian blue 染色"
-    },
-    {
-      "type": "data-table",
-      "heading": "定量データ",
-      "body": "軟骨面積は有意に増加",
-      "table_html": "<table><thead><tr><th>Group</th><th>Area (mm²)</th><th>p</th></tr></thead><tbody><tr><td>iMSC</td><td>12.3±2.1</td><td>&lt;0.01</td></tr><tr><td>Control</td><td>3.1±1.4</td><td>-</td></tr></tbody></table>",
-      "table_caption": "Table 1. 軟骨再生面積の比較"
-    },
-    {
-      "type": "section-break",
-      "heading": "考察"
-    },
-    {
-      "type": "text-only",
-      "heading": "結論",
-      "body": "1. iPS由来MSCは気管軟骨再生に有効\n2. 12週で有意な軟骨組織形成を確認\n3. 臨床応用への可能性を示唆"
-    },
-    {
-      "type": "conclusion"
-    }
+    { "type": "title" },
+    { "type": "text-only", "heading": "背景", "body": "テキスト..." },
+    { "type": "two-column", "heading": "方法", "body": "...", "image": "images/fig01.jpeg", "image_caption": "Figure 1" },
+    { "type": "figure-focus", "heading": "結果", "image": "images/fig02.jpeg", "image_caption": "Figure 2", "body": "所見..." },
+    { "type": "data-table", "heading": "データ", "body": "...", "table_html": "<table>...</table>", "table_caption": "Table 1" },
+    { "type": "section-break", "heading": "考察" },
+    { "type": "conclusion" }
   ]
 }
 ```
 
-#### スライドタイプ
+### スライドタイプ
 
-| type | 説明 | 必須フィールド | オプション |
-|------|------|---------------|----------|
-| `title` | タイトルスライド（meta から自動生成） | なし | — |
-| `conclusion` | 謝辞スライド（meta から自動生成） | なし | — |
-| `section-break` | セクション区切り | `heading` | — |
+| type | 説明 | 必須 | オプション |
+|------|------|------|----------|
+| `title` | タイトル（meta から自動生成） | — | — |
+| `conclusion` | 謝辞（meta から自動生成） | — | — |
+| `section-break` | セクション区切り（スライドのみ、ポスターでは無視） | `heading` | — |
 | `text-only` | テキストのみ | `heading`, `body` | — |
 | `two-column` | テキスト＋画像 | `heading`, `body`, `image`, `image_caption` | — |
-| `figure-focus` | 図を大きく表示 | `heading`, `image`, `image_caption` | `body` |
-| `data-table` | テーブル表示 | `heading`, `table_html`, `table_caption` | `body` |
+| `figure-focus` | 図メイン | `heading`, `image`, `image_caption` | `body` |
+| `data-table` | テーブル | `heading`, `table_html`, `table_caption` | `body` |
 
-#### body テキストの書き方
+### body テキストの書き方
 
 - `\n\n` で段落区切り
-- `・` / `- ` / `* ` で始まる行 → 箇条書きとして自動検出
-- `1. ` / `1) ` で始まる行 → 番号付きリストとして自動検出
-- 1スライドあたり4段落以内（1280×720 に収まるように）
-- 箇条書きは5項目以内
+- `・` / `- ` / `* ` で始まる行 → 箇条書き（自動検出）
+- `1. ` / `1) ` で始まる行 → 番号付きリスト（自動検出）
+- スライド: 4段落以内 / ポスター: 制限なし
 
-#### 画像パスの指定
-
-PDF から画像を抽出する場合:
-1. まず `extract_images.py` を実行して画像を取得
-2. `images_index.json` で利用可能な画像を確認
-3. slide_plan.json で `images/fig_p003_01.jpeg` のように相対パスで指定
-
-```bash
-# 画像抽出
-python builder/extract_images.py input.pdf output_dir/images/
-
-# 画像一覧確認
-cat output_dir/images/images_index.json
-```
-
-#### テーマの選択
+### テーマ
 
 | テーマ名 | 特徴 | 推奨用途 |
 |---------|------|---------|
-| `academic-blue` | 青基調、落ち着いた | 学会発表（デフォルト） |
-| `medical-teal` | ティール基調、医療向け | 医学系学会 |
-| `modern-minimal` | インディゴ基調、モダン | ゼミ・勉強会 |
-
-### Phase 3: HTML 生成
-
-slide_plan.json を出力ディレクトリに保存し、ビルダーを実行する。
-
-```bash
-# slide_plan.json から HTML 生成（出力先は自動で output/<名前>_日時/ に決まる）
-cd D:\development\slidekit
-python -m builder slide_plan.json
-
-# テーマを指定する場合
-python -m builder slide_plan.json --theme medical-teal
-
-# 出力先を明示する場合
-python -m builder slide_plan.json --output ./output/my_deck/
-```
-
-生成されるファイル:
-```
-D:\development\slidekit\output\
-└── mizuno_20260407_2130/     ← 入力名 + タイムスタンプで自動生成
-    ├── 001.html              ← タイトル
-    ├── 002.html              ← 背景
-    ├── ...
-    ├── 015.html              ← 謝辞
-    ├── index.html            ← ビューア（矢印キー操作・PDF出力）
-    └── images/               ← 抽出画像
-```
-
-`--output` を省略すると `output/<入力名>_YYYYMMDD_HHMM/` に自動で分けられる。
-
-### Phase 4: 確認・修正
-
-ブラウザで `index.html` を開いて確認する。
-
-```bash
-# Windows
-start output/index.html
-
-# または agent-browser で確認
-npx agent-browser batch "open file:///D:/development/slidekit/output/index.html" "wait 3" "snapshot"
-```
-
-**操作方法:**
-- `→` / `Space`: 次のスライド
-- `←`: 前のスライド
-- `F`: 全画面トグル
-- PDF ボタン: PDF 保存
-
-修正が必要な場合:
-1. `slide_plan.json` を編集して再生成
-2. または個別の HTML ファイルを直接編集
+| `academic-blue` | 青基調 | 学会発表（デフォルト） |
+| `medical-teal` | ティール | 医療系学会 |
+| `modern-minimal` | インディゴ | ゼミ・勉強会 |
 
 ---
 
 ## 高品質モード: slidekit-create 連携
 
-デザインの自由度を最大化したい場合は、`--export-md` で Markdown を書き出し、`/slidekit-create` に渡す。
-
-### フロー
-
-```
-PDF → python -m builder paper.pdf --export-md
-        ↓
-    output/<名前>_日時/
-    ├── content.md    ← 論文内容 + 画像パス入り Markdown
-    └── images/       ← 抽出画像
-        ↓
-    Claude が content.md を読み、必要に応じてメタ情報を修正
-        ↓
-    /slidekit-create で Phase 1「参考ファイル」として content.md を指定
-        ↓
-    43パターンから最適なレイアウトを選んで HTML 生成
-```
-
-### コマンド
+デザインの自由度を最大化したい場合（43パターン + 5スタイル × 5テーマ）。
 
 ```bash
-cd D:\development\slidekit
-
-# 1. Markdown + 画像を書き出す
+# 1. PDF → Markdown + 画像を書き出す
 python -m builder paper.pdf --export-md
 
-# 2. Claude に content.md を渡して slidekit-create を起動
-#    → Phase 1 で「参考ファイル」として content.md のパスを指定
-#    → Phase 2 でデザイン（スタイル・テーマ・カラー）を決定
-#    → Phase 3〜4 で 43 パターンからスライドを生成
+# 2. /slidekit-create で content.md を参考ファイルとして渡す
 ```
 
-### 注意
-
-- PDF からの自動抽出ではメタ情報（タイトル・著者・所属）がずれる場合がある。Claude が content.md を読んだ際に正しく修正すること。
-- 画像は `output/<名前>/images/` に抽出済みなので、slidekit-create の出力先を同じフォルダにすれば画像パスがそのまま使える。
+- PDF からの自動抽出ではメタ情報がずれる場合がある → Claude が修正
+- 画像は `output/<名前>/images/` に抽出済み → 同じフォルダを指定すれば参照可能
 
 ---
 
 ## 使い方の例
 
-### 例1: 論文 PDF からスライド作成
+### 例1: 論文 PDF → スライド
 
 ```
-ユーザー: この論文からスライドを作って
+ユーザー: この論文から学会発表スライドを日本語で作って
          PDF/paper.pdf
 
 Claude:
-  1. PDF を読み取り
-  2. 画像を抽出: python builder/extract_images.py paper.pdf output/images/
-  3. slide_plan.json を設計（15枚構成）
-  4. 生成: python -m builder slide_plan.json --output ./output/
-  5. ブラウザで確認
+  1. PDF を読み取り → 構造把握
+  2. 画像抽出: python builder/extract_images.py paper.pdf output/images/
+  3. slide_plan.json を設計（日本語、15枚）
+  4. python -m builder slide_plan.json
+  5. ブラウザで確認 → 修正あれば /slide-check
 ```
 
-### 例2: フォルダ入力
+### 例2: 論文 PDF → ポスター
 
 ```
-ユーザー: この研究データからスライドを作って
-         input_folder/ (meta.json + テキスト + 画像)
-
-Claude:
-  1. フォルダ内容を確認
-  2. meta.json からメタ情報を取得
-  3. 直接ビルダーで生成（自動モード）:
-     python -m builder ./input_folder/ --output ./output/
-  4. またはより良い構成にしたい場合:
-     slide_plan.json を手動設計 → ビルダー実行
-```
-
-### 例3: 学会ポスター作成
-
-```
-ユーザー: この論文でポスターを作って
+ユーザー: この論文でA0ポスターを作って
          PDF/paper.pdf
 
 Claude:
-  1. PDF を読み取り
-  2. python -m builder paper.pdf --poster
-  3. ブラウザで poster.html を開いて確認
-  4. Ctrl+P → A0 サイズで PDF 保存
+  1. PDF を読み取り → 構造把握
+  2. 画像抽出: python builder/extract_images.py paper.pdf output/images/
+  3. slide_plan.json を設計（ポスター用、10セクション）
+  4. python -m builder slide_plan.json --poster
+  5. ブラウザで poster.html を確認
+  6. Ctrl+P → A0 で PDF 保存
 ```
 
-A1 サイズの場合:
-```bash
-python -m builder paper.pdf --poster --size a1
-```
-
-### 例4: テキストからスライド作成
+### 例3: 研究データ（フォルダ）→ スライド
 
 ```
-ユーザー: この内容でゼミ発表スライドを作って
-         （テキストを直接入力）
+ユーザー: このフォルダの研究データからスライドを作って
+         input_folder/ (テキスト + 画像)
 
 Claude:
-  1. テキストをファイルに保存
-  2. slide_plan.json を設計（10枚構成）
-  3. 生成: python -m builder slide_plan.json --output ./output/
+  1. フォルダ内容を確認（meta.json, テキスト, 画像一覧）
+  2. slide_plan.json を設計
+  3. python -m builder slide_plan.json --output input_folder/output/
+  4. 確認
+```
+
+### 例4: 画像付き Markdown → スライド
+
+```
+ユーザー: この Markdown からスライドを作って
+         research_notes.md (本文 + ![fig](path/to/img.png))
+
+Claude:
+  1. Markdown を読み取り → セクション・画像パスを把握
+  2. slide_plan.json を設計（画像パスはそのまま転記）
+  3. 画像を出力先にコピー
+  4. python -m builder slide_plan.json
+  5. 確認
+```
+
+### 例5: 口頭説明 → スライド
+
+```
+ユーザー: iPS細胞からMSCを作って気管軟骨を再生する研究について
+         ゼミ発表用のスライドを10枚で作って
+
+Claude:
+  1. ユーザーの説明をもとにコンテンツを整理
+  2. slide_plan.json を設計（ゼミ10枚テンプレート）
+  3. python -m builder slide_plan.json
+  4. 確認
 ```
 
 ---
 
 ## チェックリスト（Phase 4 で確認）
 
+### スライド共通
 - [ ] タイトル・著者・所属が正しい
 - [ ] セクション区切りの位置が適切
 - [ ] 図がキャプション付きで正しく表示されている
 - [ ] テキストがスライドからはみ出していない
-- [ ] テーブルが読みやすい
 - [ ] ストーリーの流れが自然
 - [ ] 枚数が発表時間に対して適切
+
+### ポスター固有
+- [ ] 3カラム（A0）/ 2カラム（A1）のバランスが良い
+- [ ] 各セクションの文章量が適切（読める量）
+- [ ] 図のサイズが十分大きい
+- [ ] フッター（参考文献・連絡先）の内容が正しい
+- [ ] Ctrl+P で印刷プレビューが正常（背景色・レイアウト）
