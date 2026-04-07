@@ -1,0 +1,3 @@
+[submodule "design/awesome-design-md"]
+	path = design/awesome-design-md
+	url = https://github.com/VoltAgent/awesome-design-md.git
