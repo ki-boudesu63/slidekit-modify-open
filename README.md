@@ -1,420 +1,365 @@
-# SlideKit
+# SlideKit (Modified)
 
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 用のプレゼンテーションスライド制作ツールキットです。
+[nogataka/SlideKit](https://github.com/nogataka/SlideKit) をベースに、**論文 PDF からの学会スライド自動生成**機能を追加した派生版です。
 
-対話形式でHTMLスライドを新規作成し、ブラウザでそのままプレゼンできます。既存PDFのHTML化や PowerPoint（PPTX）変換にも対応しています。
-
----
-
-## 目次
-
-- [できること](#できること)
-- [インストール](#インストール)
-- [クイックスタート](#クイックスタート)
-- [スキル一覧](#スキル一覧)
-  - [/slidekit-create — スライド新規作成](#slidekit-create--スライド新規作成)
-  - [/slidekit-templ — PDFからテンプレート作成](#slidekit-templ--pdfからテンプレート作成)
-  - [/pptx — PowerPoint変換](#pptx--powerpoint変換)
-  - [/imgen — AI画像生成](#imgen--ai画像生成)
-- [付属テンプレート（11種類）](#付属テンプレート11種類)
-- [ディレクトリ構成](#ディレクトリ構成)
-- [よくある質問](#よくある質問)
-- [ライセンス](#ライセンス)
+元の SlideKit の対話的スライド作成（`/slidekit-create`）に加え、PDF を入力するだけでセクション分割・図版抽出・レイアウト選択・HTML 生成まで自動で行えます。
 
 ---
 
-## できること
+## オリジナルからの追加機能
+
+| 機能 | 説明 |
+|------|------|
+| **builder/** | 論文 PDF → SlideKit HTML 自動生成パイプライン（Python） |
+| **/slidekit-build** | Claude が構成設計 → slide_plan.json 作成 → ビルダー実行するスキル |
+| **/slide-check** | agent-browser による対話的スライド確認・修正スキル |
+| **--export-md** | PDF 内容を Markdown に書き出し、`/slidekit-create` に渡す高品質モード |
+| **言語選択** | `/slidekit-create`, `/slidekit-build` に日本語/英語選択ステップを追加 |
+| **awesome-design-md** | Stripe, Notion 等のデザインシステム参照（submodule） |
+
+---
+
+## クイックリファレンス
+
+```bash
+# ── セットアップ ──
+pip install pymupdf Pillow                       # Python 依存
+# openpyxl, vl-convert-python は任意
+
+# ── 自動生成（CLI 一発） ──
+cd D:\development\slidekit
+python -m builder paper.pdf                      # PDF → 15〜20枚のスライド
+python -m builder ./input_folder/                # フォルダ入力
+python -m builder slide_plan.json                # 構成済みプランから生成
+
+# ── 高品質モード（slidekit-create 連携） ──
+python -m builder paper.pdf --export-md          # Markdown + 画像を書き出し
+# → /slidekit-create で content.md を読み込み、43 パターンでスライド生成
+
+# ── オプション ──
+python -m builder paper.pdf --theme medical-teal # テーマ指定
+python -m builder paper.pdf --output ./my_deck/  # 出力先指定
+
+# ── Claude Code スキル ──
+# /slidekit-create    対話的スライド新規作成（43 パターン）
+# /slidekit-build     論文 → 構成設計 → 自動生成
+# /slide-check        スライド確認・修正（agent-browser）
+# /slidekit-templ     PDF → テンプレート変換
+# /pptx              PPTX 変換
+```
+
+---
+
+## 全体像
 
 ```mermaid
 flowchart TD
-    PDF["既存PDF資料"] -->|/slidekit-templ| TMPL["HTMLテンプレート"]
-    TMPL --> TEMPLATES["templates/ に配置"]
-    TEMPLATES --> CREATE["/slidekit-create<br/>テンプレートモードで新規作成"]
-    IMGEN["/imgen<br/>画像生成"] --> HTML
-    CREATE --> HTML["HTMLスライド群<br/>+ index.html（ビューア）"]
-    HTML -->|/pptx| PPTX["PowerPoint に変換"]
-    HTML -->|ブラウザで開く| PRESENT["そのままプレゼン"]
-```
-
-| やりたいこと | 使うスキル |
-|-------------|-----------|
-| 新しいプレゼン資料を作りたい | `/slidekit-create` |
-| 既存PDFのデザインを再利用したい | `/slidekit-templ` → `/slidekit-create` |
-| HTMLスライドをPowerPointにしたい | `/pptx` |
-| スライド用の画像を生成したい | `/imgen` |
-
----
-
-## インストール
-
-### 前提条件
-
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) がインストール済みであること
-
-### Step 1: 全スキルを一括インストール
-
-```bash
-claude install-skill https://github.com/nogataka/SlideKit
-```
-
-これだけで `/slidekit-create`、`/slidekit-templ`、`/pptx`、`/imgen` の4つが使えるようになります。
-
-### Step 2: 個別にインストールしたい場合（任意）
-
-特定のスキルだけ使いたい場合は、個別にインストールできます。
-
-```bash
-# スライド新規作成のみ
-claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/slidekit-create
-
-# PDFテンプレート化のみ
-claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/slidekit-templ
-
-# PPTX変換のみ
-claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/pptx
-
-# AI画像生成のみ
-claude install-skill https://github.com/nogataka/SlideKit/tree/main/skills/imgen
-```
-
-### Step 3: インストールの確認
-
-Claude Code を起動し、スラッシュコマンドが認識されることを確認します。
-
-```
-/slidekit-create
-```
-
-> ヒアリングの質問が表示されればインストール成功です。
-
-### アンインストール
-
-```bash
-rm -rf ~/.claude/skills/slidekit-create
-rm -rf ~/.claude/skills/slidekit-templ
-rm -rf ~/.claude/skills/pptx
-rm -rf ~/.claude/skills/imgen
+    PDF["論文 PDF"] -->|"python -m builder"| AUTO["自動生成<br/>（8パターン）"]
+    PDF -->|"--export-md"| MD["content.md<br/>+ images/"]
+    MD -->|"/slidekit-create"| CREATE["対話的生成<br/>（43パターン）"]
+    PDF -->|"/slidekit-build"| PLAN["Claude 構成設計<br/>→ slide_plan.json"]
+    PLAN -->|"python -m builder"| AUTO
+    TMPL["既存 PDF"] -->|"/slidekit-templ"| TEMPLATES["テンプレート登録"]
+    TEMPLATES --> CREATE
+    AUTO --> HTML["HTML スライド群<br/>001.html ~ NNN.html<br/>+ index.html"]
+    CREATE --> HTML
+    HTML -->|"/slide-check"| CHECK["確認・修正<br/>（agent-browser）"]
+    HTML -->|"/pptx"| PPTX["PowerPoint"]
+    HTML -->|"ブラウザ"| PRESENT["プレゼン<br/>（矢印キー操作）"]
+    CHECK --> HTML
 ```
 
 ---
 
-## クイックスタート
+## 使い方
 
-### 1. スライドを作る
-
-Claude Code で以下のいずれかを入力します。
-
-```
-/slidekit-create
-```
-
-```
-プレゼン資料を作ってください
-```
-
-Claude が一問一答形式で質問してきます。番号で回答していくだけで、スライドが生成されます。
-
-```
-質問例:
-> 「スタイルを選択してください。番号で回答してください。」
-> 1. Creative  2. Elegant  3. Modern  4. Professional  5. Minimalist
-
-回答: 3
-```
-
-### 2. ブラウザで確認する
-
-生成された `index.html` をブラウザで開きます。
+### 方法 1: CLI で自動生成
 
 ```bash
-open output/slide-page01/index.html
+python -m builder paper.pdf
 ```
+
+出力先は自動で `output/<入力名>_YYYYMMDD_HHMM/` に作成されます。
+
+```
+output/mizuno_20260407_2130/
+├── 001.html ~ 015.html    ← 個別スライド
+├── index.html             ← ビューア
+└── images/                ← 抽出画像
+```
+
+ブラウザで `index.html` を開けばすぐにプレゼンできます。
 
 | 操作 | キー |
 |------|------|
-| 次のスライド | → / ↓ / Space / クリック |
-| 前のスライド | ← / ↑ |
+| 次のスライド | → / Space / クリック |
+| 前のスライド | ← |
 | フルスクリーン | F |
-| PDF書き出し | PDF ボタン |
+| PDF 保存 | PDF ボタン |
 
-### 3. PowerPointに変換する（任意）
-
-スライド生成後、Claude が「PPTXに変換しますか？」と聞きます。「はい」で自動変換されます。
-
-手動で変換する場合:
+### 方法 2: Claude が構成設計（/slidekit-build）
 
 ```
-output/slide-page01/ のHTMLスライドをPPTXに変換してください
+ユーザー: 「この論文からスライドを作って」+ PDF
+
+Claude:
+  1. PDF を読み取り
+  2. 日本語 or 英語を確認
+  3. slide_plan.json を設計
+  4. python -m builder slide_plan.json を実行
+  5. /slide-check で確認・修正
 ```
+
+### 方法 3: 高品質モード（/slidekit-create 連携）
+
+```bash
+# 1. PDF → Markdown + 画像
+python -m builder paper.pdf --export-md
+
+# 2. /slidekit-create で content.md を参考ファイルとして指定
+#    → 43 パターンからレイアウト選択
+#    → 5 スタイル × 5 テーマからデザイン決定
+#    → 高品質なスライドを生成
+```
+
+### 方法 4: 対話的に新規作成（/slidekit-create）
+
+```
+/slidekit-create
+```
+
+一問一答形式で質問に番号で答えていくだけでスライドが生成されます（オリジナルの機能）。
 
 ---
 
 ## スキル一覧
 
-### /slidekit-create — スライド新規作成
+### /slidekit-build — 論文→スライド自動生成（追加）
 
-HTMLスライドプレゼンテーションをゼロから作成します。
+Claude が論文内容を読み取り、最適なスライド構成を設計して生成する。
 
-#### 仕様
-
-- **1スライド = 1 HTMLファイル**（1280 x 720px）
-- Tailwind CSS + Font Awesome + Google Fonts（CDN経由）
-- 純粋な HTML + CSS（データ可視化が必要な場合のみ Chart.js を使用）
-- `index.html` でブラウザからそのままプレゼン可能
-- PPTX変換を考慮したDOM構造
-
-#### 対話の流れ
-
-すべての質問は**一問一答形式**で、選択肢は**番号入力**で回答します。
-
-| Phase | やること |
-|-------|---------|
-| 0. テンプレート検出 | `templates/` にカスタムテンプレートがあればモード選択 |
-| 1. ヒアリング | スタイル、テーマ、内容ソース、枚数などを質問 |
-| 2. デザイン決定 | カラーパレット・フォント・アイコンを確定 |
-| 3. スライド構成 | 各スライドの役割・レイアウトパターンを計画 |
-| 4. HTML生成 | `001.html` 〜 `NNN.html` を出力 |
-| 5. index.html生成 | ナビゲーション付きビューアを出力 |
-| 6. チェックリスト | 品質基準への適合を検証 |
-| 7. PPTX変換（任意） | `/pptx` スキルで PowerPoint に変換 |
-
-#### スタイル × テーマの組み合わせ
-
-**5種類のスタイル:**
-
-| スタイル | 特徴 |
-|---------|------|
-| Creative | 大胆な配色、グラデーション、遊び心のあるレイアウト |
-| Elegant | 落ち着いたパレット（ゴールド系）、広めの余白 |
-| Modern | フラットデザイン、鮮やかなアクセント、テック志向 |
-| Professional | ネイビー/グレー系、構造的、情報密度高め |
-| Minimalist | 少ない色数、極端な余白、タイポグラフィ主導 |
-
-**5種類のテーマ:**
-
-| テーマ | 用途 |
+| Phase | 内容 |
 |-------|------|
-| Marketing | 製品発表、キャンペーン提案、市場分析 |
-| Portfolio | ケーススタディ、実績紹介、作品集 |
-| Business | 事業計画、経営レポート、戦略提案、投資家ピッチ |
-| Technology | SaaS紹介、技術提案、DX推進、AI/データ分析 |
-| Education | 研修資料、セミナー、ワークショップ |
+| 1 | PDF/テキストの内容読み取り |
+| 1.5 | 言語確認（日本語 / 英語） |
+| 2 | slide_plan.json の構成設計 |
+| 3 | `python -m builder slide_plan.json` で HTML 生成 |
+| 4 | agent-browser で確認・修正 |
 
-#### 43種類のレイアウトパターン
+### /slide-check — スライド確認・修正（追加）
 
-カバー、セクション区切り、2カラム、3カラム、タイムライン、KPIダッシュボード、ファネル、グリッドテーブル、2×2グリッド、2×3グリッド、TAM/SAM/SOM、VS比較、ガラスパネル、引用スライド、企業事例など、43種類のレイアウトを使い分けて多彩なスライドを生成します。
+生成済みスライドを agent-browser で開き、対話的に調整する。
 
-#### カスタムテンプレート機能
-
-自作のHTMLスライドをデザインの参考資料として登録できます。登録すると、デザイン関連のヒアリングがスキップされ、テンプレートのカラー・フォント・装飾を引き継いだスライドが生成されます。
-
-**テンプレートの配置先:**
-
-```
-~/.claude/skills/slidekit-create/references/templates/
-```
-
-**配置方法（2パターン）:**
-
-```
-# パターンA: 単一テンプレート — 直下にHTMLを置く
-templates/
-├── 001.html
-├── 002.html
-└── README.md
-
-# パターンB: 複数テンプレート — サブディレクトリで分類
-templates/
-├── navy-gold/
-│   ├── 001.html
-│   └── 002.html
-├── modern-tech/
-│   ├── 001.html
-│   └── 002.html
-└── README.md
-```
-
-> 1テンプレートセットあたり最大5ファイル。テキスト内容はコピーされず、ビジュアルデザインのみ抽出されます。
-
----
-
-### /slidekit-templ — PDFからテンプレート作成
-
-既存のPDFプレゼンテーションをHTMLスライドに変換し、`/slidekit-create` のカスタムテンプレートとして登録できます。
-
-#### 変換の流れ
-
-```
-PDF → (pdftoppm) → スライド画像（JPEG）
-                        ↓
-    Claude が各画像を読み取り → HTMLを作成
-                        ↓
-         001.html, 002.html, ... + index.html
-```
-
-#### 前提条件
-
-Poppler（`pdftoppm` コマンド）が必要です。
+- DOM 構造の確認（snapshot）
+- スクリーンショット撮影
+- Tailwind クラスの変更（フォントサイズ、レイアウト比率等）
+- 画像マーキングによる修正指示
+- デザインテーマの変更（awesome-design-md 参照）
+- テーマカラー一括置換（sed）
 
 ```bash
-# macOS
-brew install poppler
-
-# Ubuntu / Debian
-sudo apt-get install poppler-utils
-
-# Windows (chocolatey)
-choco install poppler
+npm i -g agent-browser  # 前提
 ```
 
-#### 使い方
+### /slidekit-create — 対話的スライド新規作成（元スキル + 言語選択追加）
 
-```
-/slidekit-templ
-```
+- 43 レイアウトパターン、5 スタイル × 5 テーマ
+- カスタムテンプレート機能
+- Chart.js によるデータ可視化
+- Phase 1-4b に言語選択（日本語 / 英語）を追加
 
-または:
+### /slidekit-templ — PDF → テンプレート変換（元スキル）
 
-```
-このPDFからテンプレートを作ってください: ./presentation.pdf
-```
-
-#### テンプレートとして登録する
-
-生成されたHTMLの中から参考にしたいファイルをコピーします。
-
-```bash
-# サブディレクトリで管理する場合
-mkdir -p ~/.claude/skills/slidekit-create/references/templates/my-design
-cp output/templ/*.html ~/.claude/skills/slidekit-create/references/templates/my-design/
-```
-
-登録後、`/slidekit-create` を実行するとテンプレートが検出され、使用するか確認されます。
+### /pptx — PowerPoint 変換（元スキル）
 
 ---
 
-### /pptx — PowerPoint変換
+## builder/ パッケージ（追加）
 
-HTMLスライドを PowerPoint（`.pptx`）に変換します。
-
-`/slidekit-create` のワークフロー完了後に自動で変換を提案されますが、手動で呼び出すこともできます。
+論文 PDF → SlideKit HTML の自動生成パイプライン。
 
 ```
-/pptx
+builder/
+├── cli.py                 ← CLI エントリポイント（python -m builder）
+├── content_bundle.py      ← データクラス（ContentBundle, ImageEntry 等）
+├── scanners.py            ← Scanner 群（PDF / フォルダ / テキスト / JSON）
+├── slidekit_builder.py    ← メインビルダー（ContentBundle → HTML ファイル群）
+├── patterns.py            ← 8 パターンの HTML テンプレート生成
+├── themes.py              ← 3 テーマ定義（Tailwind カスタムカラー）
+├── md_exporter.py         ← Markdown 書き出し（--export-md）
+├── section_splitter.py    ← セクション自動分割（3 段階: 見出し → キーワード → 比率）
+├── extract_images.py      ← PDF 画像抽出（PyMuPDF）
+├── make_chart.py          ← Vega-Lite → SVG 変換
+└── kroki_url.py           ← Mermaid → Kroki.io URL 生成
 ```
 
-```
-output/slide-page01/ のHTMLスライドをPPTXに変換してください
-```
+### テーマ
 
-> SlideKit のHTMLはPPTX変換を前提としたDOM構造で生成されるため、高い変換精度が得られます。複雑なCSSグラデーションや Chart.js チャートの一部はスクリーンショットとして埋め込まれる場合があります。
+| テーマ名 | 特徴 | 推奨用途 |
+|---------|------|---------|
+| `academic-blue` | 青基調、落ち着いた | 学会発表（デフォルト） |
+| `medical-teal` | ティール基調 | 医療系学会 |
+| `modern-minimal` | インディゴ基調 | ゼミ・勉強会 |
+
+### 入力形式
+
+| 入力 | コマンド例 |
+|------|-----------|
+| PDF | `python -m builder paper.pdf` |
+| フォルダ | `python -m builder ./input_folder/` |
+| テキスト | `python -m builder notes.txt` |
+| slide_plan.json | `python -m builder slide_plan.json` |
+
+### slide_plan.json の形式
+
+Claude が `/slidekit-build` で作成する構成ファイル。
+
+```json
+{
+  "meta": {
+    "title": "研究タイトル",
+    "authors": "著者名",
+    "affiliation": "所属",
+    "theme": "academic-blue",
+    "language": "ja"
+  },
+  "slides": [
+    { "type": "title" },
+    { "type": "text-only", "heading": "背景", "body": "テキスト..." },
+    { "type": "two-column", "heading": "方法", "body": "...", "image": "images/fig01.jpeg", "image_caption": "Figure 1" },
+    { "type": "figure-focus", "heading": "結果", "image": "images/fig02.jpeg", "image_caption": "Figure 2" },
+    { "type": "section-break", "heading": "考察" },
+    { "type": "conclusion" }
+  ]
+}
+```
 
 ---
 
-### /imgen — AI画像生成
+## デザインリファレンス
 
-スライド用の画像をAIで生成します（Azure OpenAI gpt-image-1.5 を使用）。
+`design/awesome-design-md/`（git submodule）に有名企業のデザインシステムを収録。`/slide-check` でテーマ変更時に参照できます。
 
-```
-/imgen
-```
-
-生成した画像はスライド内の画像素材として利用できます。
-
-> 詳細・設定方法・API仕様については [nogataka/imgen](https://github.com/nogataka/imgen) リポジトリを参照してください。
+| ブランド | 特徴 | 向いている場面 |
+|---------|------|------------|
+| stripe | ネイビー × パープル、プロジェクター映え | 学会発表全般 |
+| notion | 暖かいニュートラル、ミニマル | シンプル志向 |
+| linear.app | ダークテーマ、インディゴ | インパクト重視 |
+| vercel | モノクロ × ミニマル | テクノロジー系 |
 
 ---
 
-## 付属テンプレート（11種類）
+## 付属テンプレート（11 種類）
 
-`slide-templates/` に11種類のHTMLスライドテンプレートが同梱されています。
+`slide-templates/` に同梱（オリジナルの機能）。
 
-| ニックネーム | 用途 |
+| テンプレート | 用途 |
 |-------------|------|
-| abc-navy | ビジネスプレゼン基本（Navy+Gold） |
-| venture-split | ベンチャー向けピッチ（Orange+Green） |
-| biz-plan-blue | 事業計画書（Blue+Amber） |
-| greenfield | 新規事業提案（Forest Green） |
-| novatech | スタートアップ紹介（Navy+Orange） |
-| skyline | 次世代ビジネス戦略（Cyan+Red） |
-| ai-proposal | AI導入プロジェクト提案書 |
-| customer-experience | 顧客体験・CX提案 |
-| ai-tech | AI技術プレゼン |
+| abc-navy | ビジネスプレゼン基本 |
+| venture-split | ベンチャー向けピッチ |
+| biz-plan-blue | 事業計画書 |
+| greenfield | 新規事業提案 |
+| novatech | スタートアップ紹介 |
+| skyline | 次世代ビジネス戦略 |
+| ai-proposal | AI 導入プロジェクト |
+| customer-experience | 顧客体験・CX 提案 |
+| ai-tech | AI 技術プレゼン |
 | marketing-research | 市場調査レポート |
-| digital-report | デジタルビジネス戦略レポート |
-
-#### テンプレートの使い方
-
-```bash
-# 例: navy-gold テンプレートを登録
-cp -r slide-templates/abc-navy/ ~/.claude/skills/slidekit-create/references/templates/abc-navy/
-```
-
-登録後、`/slidekit-create` を実行するとテンプレートが検出されます。詳細は [slide-templates/README.md](slide-templates/README.md) を参照してください。
+| digital-report | デジタル戦略レポート |
 
 ---
 
 ## ディレクトリ構成
 
 ```
-SlideKit/
+slidekit/
 ├── README.md                        ← このファイル
+├── builder/                         ← 【追加】自動生成パイプライン
+│   ├── cli.py                       #   CLI（python -m builder）
+│   ├── slidekit_builder.py          #   メインビルダー
+│   ├── patterns.py                  #   8 パターン HTML 生成
+│   ├── themes.py                    #   3 テーマ定義
+│   ├── md_exporter.py               #   Markdown 書き出し
+│   ├── content_bundle.py            #   データクラス
+│   ├── scanners.py                  #   Scanner 群
+│   ├── section_splitter.py          #   セクション自動分割
+│   ├── extract_images.py            #   PDF 画像抽出
+│   ├── make_chart.py                #   Vega-Lite → SVG
+│   └── kroki_url.py                 #   Mermaid → URL
 ├── skills/
-│   ├── slidekit-create/             # /slidekit-create スキル
-│   │   ├── SKILL.md                 #   スキル定義（ワークフロー・制約・ルール）
-│   │   └── references/
-│   │       ├── index-template.html  #   ビューアのテンプレート
-│   │       ├── patterns.md          #   43レイアウトパターンのDOM定義
-│   │       └── templates/           #   カスタムテンプレート置き場
-│   ├── slidekit-templ/              # /slidekit-templ スキル
-│   │   ├── SKILL.md
-│   │   └── scripts/
-│   │       └── pdf_to_images.py     #   PDF → JPEG 変換スクリプト
-│   ├── pptx/                        # /pptx スキル
-│   ├── imgen/                       # /imgen スキル
-│   └── WORKFLOW.md                  # スキル間連携の説明
-├── slide-templates/                 # 付属テンプレート集（11種類）
-├── examples/                        # 生成サンプル
-│   ├── slide-page01/                #   18枚のサンプルデッキ
-│   └── slide-page02/                #   20枚のサンプルデッキ
-└── docs/
+│   ├── slidekit-create/             #   対話的スライド作成（元 + 言語選択追加）
+│   ├── slidekit-templ/              #   PDF → テンプレート変換（元）
+│   ├── slidekit-build/              #   【追加】論文 → 構成設計 → 自動生成
+│   ├── slide-check/                 #   【追加】スライド確認・修正
+│   └── pptx/                        #   PPTX 変換（元）
+├── design/
+│   └── awesome-design-md/           #   【追加】デザインリファレンス（submodule）
+├── slide-templates/                 #   付属テンプレート（11 種類、元）
+├── examples/                        #   生成サンプル（元）
+└── output/                          #   生成出力先（gitignore）
 ```
 
 ---
 
-## よくある質問
+## 必要環境
 
-### スキルはどこにインストールされますか？
+- **Python** 3.9 以上
+- **Claude Code** CLI（スキルとして使用する場合）
+- **agent-browser**（`/slide-check` 使用時）: `npm i -g agent-browser`
 
-`~/.claude/skills/` 配下にインストールされます。
+### Python パッケージ
 
+| パッケージ | 用途 | 必須度 |
+|-----------|------|--------|
+| `pymupdf` | PDF テキスト・画像抽出 | PDF 入力時に必須 |
+| `Pillow` | 画像サイズ取得 | 推奨 |
+| `openpyxl` | Excel テーブル変換 | Excel 使用時 |
+| `vl-convert-python` | Vega-Lite → SVG | JSON グラフ使用時 |
+
+```bash
+pip install pymupdf Pillow
 ```
-~/.claude/skills/slidekit-create/SKILL.md
-~/.claude/skills/slidekit-templ/SKILL.md
-~/.claude/skills/pptx/SKILL.md
-~/.claude/skills/imgen/SKILL.md
-```
 
-### 生成されたスライドをブラウザでプレゼンするには？
+---
 
-生成される `index.html` をブラウザで開いてください。矢印キーでスライド送り、F キーでフルスクリーン、PDF ボタンで印刷できます。
+## 元リポジトリとの関係
 
-### HTMLスライドをPDF化するには？
+本リポジトリは [nogataka/SlideKit](https://github.com/nogataka/SlideKit)（MIT License）をフォーク・改変したものです。
 
-`index.html` をブラウザで開き、PDF ボタンをクリック、またはブラウザの印刷機能（Ctrl/Cmd + P）から「PDFとして保存」を選択してください。「背景のグラフィック」をON、余白を「なし」に設定すると綺麗に出力されます。
+**元から引き継いだもの:**
+- `skills/slidekit-create/` — 43 パターン対話的スライド作成
+- `skills/slidekit-templ/` — PDF → テンプレート変換
+- `skills/pptx/` — PPTX 変換
+- `slide-templates/` — 11 種類のテンプレート
+- `examples/` — 生成サンプル
 
-### slidekit-templ と slidekit-create の違いは？
-
-| | slidekit-templ | slidekit-create |
-|---|---|---|
-| **入力** | 既存のPDFファイル | ユーザーへのヒアリング |
-| **目的** | PDFのデザインをHTMLで再現 | 新しいスライドをゼロから作成 |
-| **用途** | 既存資料のデザインを流用したいとき | 新しいプレゼンを作りたいとき |
-
-2つを組み合わせると、既存PDFのデザインを踏襲しつつ新しい内容のスライドを作成できます。
+**本リポジトリで追加したもの:**
+- `builder/` — 論文 PDF 自動生成パイプライン
+- `skills/slidekit-build/` — Claude 構成設計スキル
+- `skills/slide-check/` — agent-browser 確認・修正スキル
+- `design/awesome-design-md/` — デザインリファレンス（submodule）
+- `slidekit-create` への言語選択ステップ追加
 
 ---
 
 ## ライセンス
 
-MIT
+MIT License（元リポジトリ [nogataka/SlideKit](https://github.com/nogataka/SlideKit) に準拠）
+
+### 依存ライブラリのライセンス
+
+- **pymupdf** (AGPL-3.0) — ソースコード改変なし、ツールとして利用
+- **awesome-design-md** — 学習・参考目的で使用。各ブランドのデザインガイドラインの著作権は各権利者に帰属
+- その他の依存パッケージは MIT / BSD-3-Clause / HPND ライセンス
+
+---
+
+## 免責事項
+
+- 本ソフトウェアは **現状有姿（as-is）** で提供されます。作者は、本ソフトウェアの使用によって生じたいかなる損害についても責任を負いません。
+- 生成されるスライドの内容（テキスト・レイアウト・画像配置）は入力データと AI の処理結果に依存します。学会発表や公式な場で使用する前に、**必ず内容を確認・修正** してください。
+- 本ツールは論文の図版を抽出・再配置しますが、**著作権の処理はユーザーの責任** です。他者の図版を使用する場合は、適切な引用・許諾を確認してください。
+- `design/awesome-design-md/` に含まれるデザインリファレンスは学習・参考目的です。各ブランドのデザインガイドラインの著作権は各権利者に帰属します。商用利用の際はオリジナルのデザインを作成してください。
+- 本プロジェクトは [nogataka/SlideKit](https://github.com/nogataka/SlideKit) の派生物であり、元リポジトリの開発者とは無関係です。元リポジトリに関する問い合わせは元の開発者へお願いします。
+- PDF 保存・PPTX 変換の出力品質はブラウザや環境に依存します。完全なレイアウト再現を保証するものではありません。
+- 本プロジェクトは個人開発であり、継続的なサポートやアップデートを保証するものではありません。
