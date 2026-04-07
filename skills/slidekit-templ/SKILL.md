@@ -25,6 +25,21 @@ pip install pymupdf Pillow
 pip install numpy
 ```
 
+## デフォルト出力先
+
+ユーザーが出力先を指定しない場合、以下のディレクトリに保存する:
+
+```
+D:\development\slidekit\slide-templates\users\{テンプレート名}/
+```
+
+`{テンプレート名}` は入力PDFのファイル名（拡張子なし）をケバブケースに変換したもの。
+例: `Marketing Deck 2025.pdf` → `slide-templates/users/marketing-deck-2025/`
+
+生成されたテンプレートは `slidekit-create` でテンプレートとして使用可能（HTMLファイルのパスを指定）。
+
+---
+
 ## Workflow
 
 ### Phase 1: Generate Slide Images
