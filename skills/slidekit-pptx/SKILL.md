@@ -1,10 +1,10 @@
 ---
-name: pptx
+name: slidekit-pptx
 description: "Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions \"deck,\" \"slides,\" \"presentation,\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill."
 license: Proprietary. LICENSE.txt has complete terms
 ---
 
-# PPTX Skill
+# SlideKit PPTX Skill
 
 ## Quick Reference
 
@@ -138,23 +138,31 @@ Choose colors that match your topic — don't default to generic blue. Use these
 
 ---
 
-## QA (Required)
+## Post-Generation Fix (Required for PptxGenJS)
 
-**Assume there are problems. Your job is to find them.**
-
-Your first render is almost never correct. Approach QA as a bug hunt, not a confirmation step. If you found zero issues on first inspection, you weren't looking hard enough.
-
-### Structural QA (PptxGenJS only)
-
-**When creating from scratch with PptxGenJS**, always run the fix script immediately after generation. PptxGenJS v4.x has 14 known bugs that trigger PowerPoint's repair dialog, including: phantom `slideMaster` entries, invalid `adj` guides on `rect` presets, missing `<a:effectLst/>` in backgrounds, empty `<a:ln>` elements, misplaced `<a:pPr>` between text runs, missing slideMaster background, incorrect element ordering in presentation.xml, invalid `prst="oval"` (should be `"ellipse"`), shared notesMaster theme (needs separate theme2.xml), and duplicate images triggering "content deleted" dialog.
+**When creating from scratch with PptxGenJS**, always run the fix script immediately after generation. PptxGenJS v4.x has 14 known bugs that trigger PowerPoint's repair dialog.
 
 ```bash
-python fix_pptx.py output.pptx
+python scripts/fix_pptx.py output.pptx
 ```
 
-See [pptxgenjs.md](pptxgenjs.md) item #9 for the comprehensive fix script (fixes all known issues). **This step is mandatory for all PptxGenJS-generated files.**
+See [pptxgenjs.md](pptxgenjs.md) item #9 for the full list of bugs fixed. **This step is mandatory for all PptxGenJS-generated files.**
 
-### Content QA
+---
+
+## QA (Optional — User Confirmation Required)
+
+After generating and fixing the PPTX, **ask the user**:
+
+> PPTXファイルを生成しました。Visual QA（スライド画像に変換して目視チェック）を行いますか？
+> ※ QAにはLibreOfficeまたはPowerPointが必要です。
+
+- **ユーザーが「はい」**: 下記のQAフローを実行
+- **ユーザーが「いいえ」**: QAをスキップし、出力ファイルのパスを伝えて完了
+
+### QA Flow (ユーザーが希望した場合のみ)
+
+#### Content QA
 
 ```bash
 python -m markitdown output.pptx
@@ -170,9 +178,9 @@ python -m markitdown output.pptx | grep -iE "xxxx|lorem|ipsum|this.*(page|slide)
 
 If grep returns results, fix them before declaring success.
 
-### Visual QA
+#### Visual QA
 
-**⚠️ USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.
+**USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.
 
 Convert slides to images (see [Converting to Images](#converting-to-images)), then use this prompt:
 
@@ -202,15 +210,13 @@ Read and analyze these images:
 Report ALL issues found, including minor ones.
 ```
 
-### Verification Loop
+#### Verification Loop
 
 1. Generate slides → Convert to images → Inspect
 2. **List issues found** (if none found, look again more critically)
 3. Fix issues
 4. **Re-verify affected slides** — one fix often creates another problem
 5. Repeat until a full pass reveals no new issues
-
-**Do not declare success until you've completed at least one fix-and-verify cycle.**
 
 ---
 
@@ -230,6 +236,8 @@ To re-render specific slides after fixes:
 ```bash
 pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
 ```
+
+**Note:** This requires LibreOffice (`soffice`) and Poppler (`pdftoppm`). If neither is available, Visual QA cannot be performed — inform the user and skip.
 
 ---
 
