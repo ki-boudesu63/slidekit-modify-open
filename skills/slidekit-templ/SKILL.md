@@ -10,7 +10,7 @@ Convert PDF presentations to high-fidelity HTML slides by visually reproducing e
 ## Pipeline
 
 ```
-PDF → (pdftoppm) → Slide images
+PDF → (pymupdf) → Slide images
                         ↓
     Claude reads each image + writes HTML
                         ↓
@@ -20,7 +20,9 @@ PDF → (pdftoppm) → Slide images
 ## Dependencies
 
 ```bash
-brew install poppler
+pip install pymupdf Pillow
+# グリッドモード時は numpy も必要:
+pip install numpy
 ```
 
 ## Workflow
@@ -28,10 +30,19 @@ brew install poppler
 ### Phase 1: Generate Slide Images
 
 ```bash
-python ~/.claude/skills/pdf-to-html/scripts/pdf_to_images.py input.pdf output_dir
+# 通常モード（1ページ = 1スライド）
+python skills/slidekit-templ/scripts/pdf_to_images.py input.pdf output_dir
+
+# グリッドモード（Figma/Canva 等の一括 PDF を自動分割）
+python skills/slidekit-templ/scripts/pdf_to_images.py input.pdf output_dir --grid
+
+# グリッドモード（特定ページを指定）
+python skills/slidekit-templ/scripts/pdf_to_images.py input.pdf output_dir --grid --page 0
 ```
 
 This produces `output_dir/slide-01.jpg`, `slide-02.jpg`, etc.
+
+**グリッドモード** は Figma や Canva から「全スライドを1ページにまとめてエクスポート」した PDF に対応。スライド間の隙間（均一な色の帯）を自動検出し、個別のスライド画像に分割する。空白スライドは自動スキップされる。
 
 ### Phase 2: Analyze the Deck
 

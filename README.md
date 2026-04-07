@@ -168,7 +168,21 @@ npm i -g agent-browser  # 前提
 - Chart.js によるデータ可視化
 - Phase 1-4b に言語選択（日本語 / 英語）を追加
 
-### /slidekit-templ — PDF → テンプレート変換（元スキル）
+### /slidekit-templ — PDF → テンプレート変換（元スキル + グリッドモード追加）
+
+既存 PDF をスライド画像に変換し、Claude が HTML に再現する。
+
+- **通常モード**: 1ページ = 1スライド（PyMuPDF）
+- **グリッドモード**: Figma/Canva の一括 PDF を隙間自動検出で分割（`--grid`）
+- Poppler（pdftoppm）依存を PyMuPDF に置換済み
+
+```bash
+# 通常
+python skills/slidekit-templ/scripts/pdf_to_images.py input.pdf slides/
+
+# Figma グリッド PDF
+python skills/slidekit-templ/scripts/pdf_to_images.py input.pdf slides/ --grid
+```
 
 ### /pptx — PowerPoint 変換（元スキル）
 
@@ -339,6 +353,7 @@ pip install pymupdf Pillow
 - `skills/slide-check/` — agent-browser 確認・修正スキル
 - `design/awesome-design-md/` — デザインリファレンス（submodule）
 - `slidekit-create` への言語選択ステップ追加
+- `slidekit-templ` の PyMuPDF 化 + Figma グリッド分割モード追加
 
 ---
 
