@@ -6,6 +6,12 @@ license: Proprietary. LICENSE.txt has complete terms
 
 # SlideKit PPTX Skill
 
+## Limitations
+
+- **学会ポスター（A0/A1等）には非対応。** 本スキルのデザインガイド（座標、フォントサイズ、マージン等）はすべて16:9スライド（10" × 5.625"）基準で設計されており、A0（33" × 47"）等の大判サイズでは座標系のスケール調整が必要になるため実用的ではない。ポスター生成にはHTML出力（`slidekit-build`）を使用すること。
+
+---
+
 ## Quick Reference
 
 | Task | Guide |
