@@ -117,10 +117,11 @@ When custom templates were loaded in Phase 0, **skip all design-related question
 
 1. **出力ディレクトリ** — same as 1-1 below
 2. **スライド内容のソース** — same as 1-4 below
-3. **プレゼンタイトル** — same as 1-5 below
-4. **スライド枚数** — same as 1-6 below
-5. **会社名・ブランド名** — same as 1-7 below
-6. **テンプレートデザインの確認** — present the extracted design (colors, fonts, decorative style) to the user and ask:
+3. **スライドの言語** — same as 1-4b below
+4. **プレゼンタイトル** — same as 1-5 below
+5. **スライド枚数** — same as 1-6 below
+6. **会社名・ブランド名** — same as 1-7 below
+7. **テンプレートデザインの確認** — present the extracted design (colors, fonts, decorative style) to the user and ask:
 
 > 「テンプレートから以下のデザインを検出しました。」
 >
@@ -199,6 +200,20 @@ Ask the user how they want to provide the content for the slides. This determine
 1. Ask about the target audience (executives, engineers, clients, etc.)
 2. Ask about key messages or points the user wants to convey
 3. Generate content based on the answers
+
+### 1-4b. スライドの言語
+
+Ask the user which language to use for slide content. **Skip this question if the user has already specified "日本語で" or "英語で" in their initial request.**
+
+> 「スライドの言語はどちらにしますか？番号で回答してください。」
+>
+> 1. **日本語** — 見出し・本文を日本語で作成（専門用語は英語併記、例: 間葉系幹細胞（MSC））
+> 2. **英語** — 見出し・本文を英語で作成
+
+- **1** → All headings, body text, bullet points in Japanese. Technical terms include English in parentheses
+- **2** → All content in English (original text preserved if from reference file)
+
+This applies to all generated slides. The `lang` attribute in HTML remains `ja` regardless (for font rendering).
 
 ### 1-5. プレゼンタイトル
 
