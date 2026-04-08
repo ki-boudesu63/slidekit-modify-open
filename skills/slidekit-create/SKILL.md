@@ -498,7 +498,7 @@ Large digits + small unit span:
 
 After all slide HTML files are generated, create `{output_dir}/index.html` — a presentation viewer with keyboard navigation, viewport scaling, fullscreen, and PDF export.
 
-Use the template at [references/index-template.html](references/index-template.html) as the base. Replace the placeholders:
+**必ず [references/index-template.html](references/index-template.html) をそのまま使用すること。** index.html を独自に書いてはならない。テンプレートには Prev / Next / PDF / Fullscreen ボタン、印刷用CSS、ビューポートスケーリングがすべて含まれている。プレースホルダーだけを置換する：
 
 1. **`{{TITLE}}`** → presentation title from Phase 1
 2. **`<!-- {{SLIDES}} -->`** → one `<div>` per slide:
