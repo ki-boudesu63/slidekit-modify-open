@@ -359,6 +359,31 @@ pip install pymupdf Pillow
 - `design/awesome-design-md/` — デザインリファレンス（[VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md) を利用、任意導入）
 - `slidekit-create` への言語選択ステップ追加
 - `slidekit-templ` の PyMuPDF 化 + Figma グリッド分割モード追加
+- `builder/utils/fix_pptx.py` — PptxGenJS v4 の既知バグ修正スクリプト
+
+---
+
+## PPTX 変換を使う場合
+
+HTMLスライドをPowerPointに変換したい場合は、以下の手順で行います。
+
+### 1. Anthropic の PPTX スキルを導入
+
+Claude Code の `example-skills:pptx`（Anthropic 提供）を使用します。Claude Code の設定で有効化してください。
+
+### 2. PPTX を生成
+
+Claude Code で `/pptx` を実行し、出力ディレクトリを指定すると、PptxGenJS を使ってPPTXファイルが生成されます。
+
+### 3. fix_pptx.py で修正
+
+PptxGenJS v4.x には PowerPoint の修復ダイアログを引き起こす既知のバグが14件あります。生成後に本リポジトリ同梱の修正スクリプトを実行してください。
+
+```bash
+python builder/utils/fix_pptx.py output.pptx
+```
+
+このスクリプトは本リポジトリのオリジナルコードです（Anthropic のスキルとは独立）。
 
 ---
 

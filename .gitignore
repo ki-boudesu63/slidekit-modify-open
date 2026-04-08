@@ -11,3 +11,4 @@ tmp_test/
 .env
 .env.*
 node_modules/
+skills/slidekit-pptx/
