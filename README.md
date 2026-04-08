@@ -355,7 +355,7 @@ pip install pymupdf Pillow
 **本リポジトリで追加したもの:**
 - `builder/` — 論文 PDF 自動生成パイプライン
 - `skills/slidekit-build/` — Claude 構成設計スキル
-- `skills/slide-check/` — agent-browser 確認・修正スキル
+- `skills/slide-check/` — [agent-browser](https://github.com/vercel-labs/agent-browser) を使った確認・修正スキル
 - `design/awesome-design-md/` — デザインリファレンス（[VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md) を利用、任意導入）
 - `slidekit-create` への言語選択ステップ追加
 - `slidekit-templ` の PyMuPDF 化 + Figma グリッド分割モード追加
@@ -394,6 +394,7 @@ MIT License（元リポジトリ [nogataka/SlideKit](https://github.com/nogataka
 ### 依存ライブラリのライセンス
 
 - **pymupdf** (AGPL-3.0) — ソースコード改変なし、ツールとして利用
+- **[agent-browser](https://github.com/vercel-labs/agent-browser)** (MIT License, Vercel Labs) — `/slide-check` スキルで使用。スライドのDOM確認・スクリーンショット撮影に利用。`npm i -g agent-browser` で導入
 - **[awesome-design-md](https://github.com/VoltAgent/awesome-design-md)** (MIT License, VoltAgent) — デザインリファレンスとして任意導入。SlideKit本体とは独立しており、個人の責任で導入してください。各ブランドのデザインガイドラインの著作権は各権利者に帰属
 - その他の依存パッケージは MIT / BSD-3-Clause / HPND ライセンス
 
