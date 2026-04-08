@@ -348,7 +348,7 @@ pip install pymupdf Pillow
 **元から引き継いだもの:**
 - `skills/slidekit-create/` — 43 パターン対話的スライド作成
 - `skills/slidekit-templ/` — PDF → テンプレート変換
-- `skills/pptx/` — PPTX 変換
+- `skills/slidekit-pptx/` — PPTX 変換
 - `slide-templates/` — 11 種類のテンプレート
 - `examples/` — 生成サンプル
 
@@ -356,7 +356,7 @@ pip install pymupdf Pillow
 - `builder/` — 論文 PDF 自動生成パイプライン
 - `skills/slidekit-build/` — Claude 構成設計スキル
 - `skills/slide-check/` — agent-browser 確認・修正スキル
-- `design/awesome-design-md/` — デザインリファレンス（submodule）
+- `design/awesome-design-md/` — デザインリファレンス（[VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md) を利用、任意導入）
 - `slidekit-create` への言語選択ステップ追加
 - `slidekit-templ` の PyMuPDF 化 + Figma グリッド分割モード追加
 
@@ -369,7 +369,7 @@ MIT License（元リポジトリ [nogataka/SlideKit](https://github.com/nogataka
 ### 依存ライブラリのライセンス
 
 - **pymupdf** (AGPL-3.0) — ソースコード改変なし、ツールとして利用
-- **awesome-design-md** — 学習・参考目的で使用。各ブランドのデザインガイドラインの著作権は各権利者に帰属
+- **[awesome-design-md](https://github.com/VoltAgent/awesome-design-md)** (MIT License, VoltAgent) — デザインリファレンスとして任意導入。SlideKit本体とは独立しており、個人の責任で導入してください。各ブランドのデザインガイドラインの著作権は各権利者に帰属
 - その他の依存パッケージは MIT / BSD-3-Clause / HPND ライセンス
 
 ---
