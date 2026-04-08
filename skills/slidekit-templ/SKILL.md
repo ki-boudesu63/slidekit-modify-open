@@ -30,7 +30,7 @@ pip install numpy
 ユーザーが出力先を指定しない場合、以下のディレクトリに保存する:
 
 ```
-D:\development\slidekit\slide-templates\users\{テンプレート名}/
+slide-templates/users/{テンプレート名}/
 ```
 
 `{テンプレート名}` は入力PDFのファイル名（拡張子なし）をケバブケースに変換したもの。

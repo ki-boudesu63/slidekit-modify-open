@@ -28,7 +28,7 @@ pip install pymupdf Pillow                       # Python 依存
 # openpyxl, vl-convert-python は任意
 
 # ── 自動生成（CLI 一発） ──
-cd D:\development\slidekit
+cd /path/to/slidekit
 python -m builder paper.pdf                      # PDF → 15〜20枚のスライド
 python -m builder ./input_folder/                # フォルダ入力
 python -m builder slide_plan.json                # 構成済みプランから生成

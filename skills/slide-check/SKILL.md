@@ -21,7 +21,7 @@ npm i -g agent-browser
 
 ```
 確認・修正するスライドフォルダのパスを教えてください。
-（例: D:\development\slidekit\output\mizuno_20260407_2130）
+（例: output/my-presentation_20260407_2130）
 ```
 
 フォルダ内に `index.html` と `001.html` があることを確認する。
@@ -67,7 +67,7 @@ npx agent-browser batch \
 snapshot 結果をもとに、スライド構成を報告する：
 
 ```
-スライドフォルダ: output/mizuno_20260407_2130/
+スライドフォルダ: output/my-presentation_20260407_2130/
 全16スライド:
 
   001.html: タイトル — "Rat Tracheal Cartilage Regeneration..."
@@ -228,7 +228,7 @@ npx agent-browser screenshot --screenshot-dir "<スライドフォルダ>/screen
 
 ```bash
 # slide_plan.json に新しいスライド定義を追加してから:
-cd D:\development\slidekit
+cd /path/to/slidekit
 python -m builder slide_plan.json --output <同じフォルダ>
 ```
 
@@ -285,7 +285,7 @@ mv tmp.html 006.html
 
 ```
 スライド調整完了:
-  フォルダ: output/mizuno_20260407_2130/
+  フォルダ: output/my-presentation_20260407_2130/
 
   変更内容:
     - 001.html: タイトルフォントサイズ拡大（text-5xl → text-6xl）
@@ -317,7 +317,7 @@ mv tmp.html 006.html
 ### デザインリファレンスの場所
 
 ```
-D:\development\slidekit\design\awesome-design-md\design-md\
+design/awesome-design-md/design-md/
 ```
 
 各ブランドフォルダ内の `DESIGN.md` にカラーパレット・タイポグラフィ・影・角丸などが記載。

@@ -7,3 +7,7 @@ docs/private/
 .smart-edit/
 __pycache__/
 *.pyc
+tmp_test/
+.env
+.env.*
+node_modules/

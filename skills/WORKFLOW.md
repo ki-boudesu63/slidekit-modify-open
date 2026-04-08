@@ -371,17 +371,17 @@ cp output/templ/00[1-5].html ~/.claude/skills/slidekit-create/references/templat
 
 ```bash
 # 背景画像の生成
-npm run dev --prefix /Volumes/Data/dev/imgen -- image gen \
+npm run dev --prefix <path-to-imgen> -- image gen \
   "ミニマルなテクノロジーの抽象的背景、濃紺(#1B3A5C)とティール(#2D8B7A)のグラデーション" \
   -q high -s 1536x1024 -o slides/bg-tech.png
 
 # アイコンの生成
-npm run dev --prefix /Volumes/Data/dev/imgen -- image gen \
+npm run dev --prefix <path-to-imgen> -- image gen \
   "フラットデザインのチームワークイラスト、白背景" \
   -q high -s 1024x1024 -o slides/team-icon.png
 
 # 既存画像の配色調整
-npm run dev --prefix /Volumes/Data/dev/imgen -- image edit \
+npm run dev --prefix <path-to-imgen> -- image edit \
   slides/photo.jpg "カラートーンを濃紺とゴールドに統一" \
   -s 1536x1024 -o slides/photo-adjusted.png
 ```
@@ -464,7 +464,7 @@ SlideKit/
 │   ├── biz-plan-blue/
 │   └── ...
 │
-└── /Volumes/Data/dev/imgen/       # 画像生成CLIツール（別リポジトリ）
+└── <path-to-imgen>/       # 画像生成CLIツール（別リポジトリ）
     ├── src/
     │   ├── commands/image/
     │   │   ├── gen.ts             # 画像生成

@@ -15,7 +15,11 @@ import sys
 import os
 import json
 import re
-import fitz  # PyMuPDF
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    print("エラー: pymupdf が必要です。pip install pymupdf を実行してください。")
+    sys.exit(1)
 
 
 # 抽出対象の最小サイズ（px）。これ未満はアイコン・罫線などとして除外

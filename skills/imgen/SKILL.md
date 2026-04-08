@@ -11,10 +11,10 @@ imgen is NOT globally installed. Use one of these methods:
 
 ```bash
 # 開発モード（ソースから直接実行、.envを自動読み込み）
-npm run dev --prefix /Volumes/Data/dev/imgen -- <command>
+npm run dev --prefix <path-to-imgen> -- <command>
 
 # npx でソースから実行（.envは自動読み込みされない）
-npx tsx /Volumes/Data/dev/imgen/src/index.ts <command>
+npx tsx <path-to-imgen>/src/index.ts <command>
 
 # npm パッケージとして実行（npm install -g @nogataka/imgen 済みの場合）
 imgen <command>
