@@ -6,6 +6,13 @@
 
 ---
 
+## Claude Code / Codex 併用
+
+- Claude Code 用のスキルと `skills/` 配下はそのまま残しています
+- Codex 用の追加ガイドは [`AGENTS.md`](./AGENTS.md) に分離しています
+- 共通の実行基盤は `builder/` です
+- Codex では Claude の slash command を再現せず、`python -m builder ...` と JSON 中間ファイルを中心に運用します
+
 ## オリジナルからの追加機能
 
 | 機能 | 説明 |
