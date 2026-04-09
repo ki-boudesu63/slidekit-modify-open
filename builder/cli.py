@@ -22,6 +22,7 @@ from .content_bundle import ContentBundle
 from .scanners import FolderScanner, PDFScanner, TextScanner, PlanScanner
 from .slidekit_builder import SlideKitBuilder
 from .md_exporter import export_md
+from .plan_exporter import export_plan, export_content
 
 # プロジェクトルート（slidekit/）
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -37,6 +38,16 @@ def _make_output_dir(input_path: Path) -> Path:
     out = OUTPUT_BASE / f"{short}_{ts}"
     out.mkdir(parents=True, exist_ok=True)
     return out
+
+
+def _export_both_json(bundle: ContentBundle, output_dir: Path, quiet: bool = False) -> None:
+    """slide_plan.json と slide_content.json を両方出力する"""
+    plan_result = export_plan(bundle, output_dir / "slide_plan.json")
+    content_result = export_content(bundle, output_dir / "slide_content.json")
+    if not quiet:
+        print(f"構成モード用: {plan_result}")
+        print(f"素材モード用: {content_result}")
+        print(f"  → slide_reviewer.html でレビュー・編集できます")
 
 
 def main() -> None:
@@ -61,6 +72,16 @@ def main() -> None:
         "--export-md",
         action="store_true",
         help="スライド生成せず、Markdown ファイルのみ書き出す（slidekit-create に渡す用）",
+    )
+    parser.add_argument(
+        "--export-plan",
+        action="store_true",
+        help="スライド生成せず、slide_plan.json のみ書き出す（builder 用）",
+    )
+    parser.add_argument(
+        "--export-content",
+        action="store_true",
+        help="スライド生成せず、slide_content.json のみ書き出す（slidekit-create 用、type なし）",
     )
     parser.add_argument(
         "--poster",
@@ -111,13 +132,28 @@ def main() -> None:
     if args.theme:
         bundle.theme = args.theme
 
-    # Markdown エクスポートモード
+    # Markdown エクスポートモード（両 JSON も同時出力）
     if args.export_md:
         md_path = output_dir / "content.md"
         result = export_md(bundle, md_path)
         print(f"Markdown 出力: {result}")
-        print(f"  → /slidekit-create で読み込んでスライドを作成できます")
+        _export_both_json(bundle, output_dir)
         return
+
+    # slide_plan.json エクスポートモード
+    if args.export_plan:
+        _export_both_json(bundle, output_dir)
+        print(f"  → python -m builder.cli {output_dir / 'slide_plan.json'} で HTML を生成できます")
+        return
+
+    # slide_content.json エクスポートモード（create 用）
+    if args.export_content:
+        _export_both_json(bundle, output_dir)
+        print(f"  → /slidekit-create に slide_content.json を渡してスライドを作成できます")
+        return
+
+    # 両 JSON を自動保存（ビルド前）
+    _export_both_json(bundle, output_dir, quiet=True)
 
     # ビルド
     builder = SlideKitBuilder()

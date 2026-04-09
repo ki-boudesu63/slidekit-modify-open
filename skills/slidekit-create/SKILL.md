@@ -176,6 +176,9 @@ Ask all of the following questions (1-1 through 1-9).
 
 Ask the user how they want to provide the content for the slides. This determines what text, data, and structure will appear in the deck.
 
+**ソースの優先順位（複数ファイルが提供された場合）:**
+同じフォルダに `slide_content.json`（または `slide_plan.json`）と `content.md` が両方ある場合、**JSON を優先して使用する**。JSON はスライド単位に構造化されており、より精度の高い入力となる。MD ファイルは無視してよい（JSON の生成元であり、情報は重複している）。ユーザーが明示的に MD を指定した場合のみ MD を使用する。
+
 > 「スライドの内容をどのように提供しますか？番号で回答してください。」
 >
 > 1. **参考ファイル** — ファイル（Markdown、テキスト、Wordなど）を指定する
@@ -189,6 +192,28 @@ Ask the user how they want to provide the content for the slides. This determine
 3. Map the structure to the slide sequence — each major section becomes a section divider + content slides
 4. Preserve key text, numbers, and data points faithfully
 5. Adapt the content to fit the slide format (concise bullet points, not full paragraphs)
+
+**When `slide_content.json` is provided (素材モード):**
+
+`slide_content.json` は `"mode": "content"` を持ち、`type` フィールドを含まない。各スライドは `heading` / `body` / `images` のみの素材データである。
+
+1. JSON を読み込み、meta 情報をプレゼンのメタ情報として採用する
+2. slides 配列の各要素を「素材」として扱い、**レイアウト（type）は Phase 3 で独自に決定する**
+3. 各スライドの `heading` / `body` をそのまま内容として使用する
+4. `images` 配列に含まれる画像パスを、適切なスライドに配置する（2カラム / figure-focus 等）
+5. スライドの統合・分割は自由に行ってよい（素材が多すぎれば統合、少なければ分割）
+6. 1-2 〜 1-3 のスタイル・テーマ質問は通常通り行う（meta に theme がある場合はデフォルト値として提示）
+7. 1-5（枚数）、1-6（会社名）等の質問も通常通り行う
+
+**When `slide_plan.json` is provided (構成モード):**
+
+`slide_plan.json` は `"mode": "plan"` を持ち、各スライドに `type` フィールドが含まれる。これは builder CLI で生成した構造化データである。
+
+1. JSON を読み込み、meta 情報をプレゼンのメタ情報として採用する
+2. slides 配列の `type` を **参考情報** として読むが、最終的なレイアウトは Phase 3 で再設計する
+3. `heading` / `body` / `image` の内容はそのまま使用する
+4. builder が付与した type はあくまで自動推定であり、slidekit-create はより適切なレイアウトパターン（43種から選択）を自由に割り当ててよい
+5. 1-2 〜 1-3 のスタイル・テーマ質問は通常通り行う
 
 **When direct text is provided:**
 
@@ -359,11 +384,100 @@ Rules:
 | `019.html` | Summary | HBF | Key takeaways + next actions |
 | `020.html` | Closing | Full-bleed / Center | Thank-you slide + contact info |
 
+### 3-5. slide_content.json / slide_plan.json の保存
+
+Phase 3 で設計したスライド構成を、**HTML 生成の前に** 2つの JSON として出力ディレクトリに保存する。
+
+| ファイル | 用途 | レビュー時の役割 |
+|----------|------|-----------------|
+| `slide_content.json` | **レビュー・編集用（メイン）** | 素材モードで内容・画像を自由に編集。type なし |
+| `slide_plan.json` | builder CLI での再生成用（参考） | 構成モードで type ごと確認。builder にそのまま渡せる |
+
+**slide_content.json フォーマット:**
+
+```json
+{
+  "meta": {
+    "title": "プレゼンタイトル",
+    "authors": "著者名",
+    "affiliation": "所属",
+    "subtitle": "サブタイトル（任意）",
+    "theme": "テーマ名（academic-blue 等）",
+    "date": "日付",
+    "presentation_type": "basic-research / marketing / etc.",
+    "language": "ja / en"
+  },
+  "mode": "content",
+  "slides": [
+    {
+      "heading": "背景",
+      "body": "・箇条書き1\n・箇条書き2",
+      "images": []
+    },
+    {
+      "heading": "方法",
+      "body": "テキスト",
+      "images": [
+        { "path": "images/fig_001.png", "caption": "Figure 1. キャプション" }
+      ]
+    },
+    {
+      "heading": "結果",
+      "body": "テキスト",
+      "images": [
+        { "path": "images/fig_002.png", "caption": "Figure 2. キャプション" },
+        { "path": "images/fig_003.png", "caption": "Figure 3. キャプション" }
+      ]
+    }
+  ]
+}
+```
+
+- `type` フィールドなし — レイアウトは Phase 4 で AI が決定する
+- `title` / `conclusion` / `section-break` は含まない（meta から自動生成）
+- `images` は配列で **複数画像可**（ユーザーがレビューアプリで自由に追加できる）
+
+**slide_plan.json フォーマット（参考用）:**
+
+```json
+{
+  "meta": { ... },
+  "mode": "plan",
+  "slides": [
+    { "type": "title" },
+    { "type": "text-only", "heading": "見出し", "body": "テキスト" },
+    { "type": "two-column", "heading": "見出し", "body": "テキスト", "image": "images/fig_001.png", "image_caption": "キャプション" },
+    { "type": "conclusion" }
+  ]
+}
+```
+
+**手順:**
+1. Phase 3 の slide map から `slide_content.json` を生成する（type 除去、title/conclusion/section-break 除去、image → images 配列変換）
+2. 同時に `slide_plan.json` も保存する（builder CLI 用）
+3. 両ファイルを `{output_dir}/` に UTF-8 で保存する
+
+---
+
+### Phase 3.5: レビュー（任意）
+
+JSON 保存後、ユーザーにレビューの機会を提供する。
+
+> 「スライド構成を保存しました。」
+>
+> 1. **このまま生成する** — Phase 4 に進みます
+> 2. **レビューアプリで確認・編集する** — `demo/slide_reviewer.html` を開いて `slide_content.json` を読み込み、内容や画像を編集してください。編集後の JSON をこのチャットに渡していただければ続行します
+
+- **1** / 「OK」「進めて」等 → Phase 4 に進む
+- **2** → ユーザーが編集済み JSON を渡すまで待機
+  - `slide_content.json`（素材モード）が渡された場合: 内容を読み込み、Phase 4 で AI がレイアウトを再決定して HTML 生成
+  - `slide_plan.json`（構成モード）が渡された場合: type を参考情報として読むが、最終レイアウトは AI が再設計
+
 ---
 
 ## Phase 4: HTML生成
 
-Generate all slide HTML files based on the slide map from Phase 3.
+Generate all slide HTML files based on the slide map from Phase 3 (or Phase 3.5 で編集された内容).
 
 ### 4-0. テンプレート画像のコピー（テンプレートモードのみ）
 

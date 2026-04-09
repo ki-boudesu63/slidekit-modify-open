@@ -62,7 +62,9 @@ Phase 1: 内容読み取り
     ↓
 Phase 1.5: 出力モード確認（スライド or ポスター）+ 言語確認（日本語 or 英語）
     ↓
-Phase 2: 構成設計（slide_plan.json 作成）
+Phase 2: 構成設計（slide_plan.json + slide_content.json 作成）
+    ↓
+Phase 2.5: レビュー（任意 — slide_reviewer.html で確認・編集）
     ↓
 Phase 3: HTML 生成
     ↓
@@ -206,6 +208,21 @@ slide_plan.json を設計する。
 - 図は各セクション内に表示される（スライドとは異なり横並びではない）
 - テキスト量は多めでOK（ポスターは読むもの）
 
+### Phase 2.5: レビュー（任意）
+
+Phase 2 で作成した slide_plan.json と slide_content.json を出力ディレクトリに保存したら、ユーザーに以下を伝える:
+
+> 「slide_plan.json と slide_content.json を保存しました。」
+>
+> 1. **このまま生成する** — Phase 3 に進む
+> 2. **レビューアプリで確認・編集する** — `demo/slide_reviewer.html` をブラウザで開いて JSON を読み込み、内容や画像を編集してから再度このチャットに渡してください
+
+- **1** → Phase 3 に進む
+- **2** → ユーザーが編集済み JSON を渡すまで待機。渡された JSON を読み込み直して Phase 3 に進む
+- ユーザーが「そのまま」「OK」「進めて」等と言った場合も Phase 3 に進む
+
+**slide_content.json** は slidekit-create 用の素材データ（type なし）。ユーザーがレビューアプリの素材モードで編集し、`/slidekit-create` に渡して別デザインで作り直す場合に使う。
+
 ### Phase 3: HTML 生成
 
 slide_plan.json を出力ディレクトリに保存し、ビルダーを実行する。
@@ -301,6 +318,73 @@ start output/<名前>/poster.html
 | `figure-focus` | 図メイン | `heading`, `image`, `image_caption` | `body` |
 | `data-table` | テーブル | `heading`, `table_html`, `table_caption` | `body` |
 
+---
+
+## slide_content.json スキーマ（slidekit-create 用）
+
+slide_plan.json と同時に出力する。**type フィールドを含まない**素材データ。slidekit-create がレイアウトを自由に決定するための入力形式。
+
+```json
+{
+  "meta": {
+    "title": "研究タイトル",
+    "authors": "著者名¹、共著者名²",
+    "affiliation": "¹〇〇大学 △△科、²□□研究所",
+    "subtitle": "第XX回〇〇学会",
+    "theme": "academic-blue",
+    "date": "2025年11月",
+    "presentation_type": "basic-research",
+    "language": "ja"
+  },
+  "mode": "content",
+  "slides": [
+    {
+      "heading": "背景",
+      "body": "・高齢化に伴い救急外来の患者数が増加\n・トリアージの精度にばらつきがある",
+      "images": []
+    },
+    {
+      "heading": "方法",
+      "body": "・単施設・前後比較研究\n・AI導入前後で比較",
+      "images": [
+        { "path": "images/fig01.jpeg", "caption": "Figure 1. 研究デザイン" }
+      ]
+    },
+    {
+      "heading": "結果",
+      "body": "・待ち時間が26%短縮\n・トリアージ精度が78%→89%に向上",
+      "images": [
+        { "path": "images/fig02.jpeg", "caption": "Figure 2. 待ち時間の比較" },
+        { "path": "images/fig03.jpeg", "caption": "Figure 3. 精度比較" }
+      ]
+    }
+  ]
+}
+```
+
+### slide_plan.json との違い
+
+| | slide_plan.json | slide_content.json |
+|---|---|---|
+| `mode` | `"plan"` | `"content"` |
+| `type` フィールド | あり（title, text-only, two-column 等） | **なし** |
+| title / conclusion スライド | 含む | **含まない**（meta から自動生成） |
+| section-break | 含む | **含まない** |
+| 画像 | `image` + `image_caption`（1枚） | `images` 配列（**複数可**） |
+| 用途 | builder CLI でそのまま HTML 生成 | slidekit-create に素材として渡す |
+
+### Phase 2 での両ファイル生成手順
+
+1. Phase 2 で slide_plan.json を設計する（従来通り）
+2. slide_plan.json を出力ディレクトリに保存する
+3. slide_plan.json から slide_content.json を生成して同じディレクトリに保存する:
+   - `type` フィールドを除去
+   - `title` / `conclusion` / `section-break` スライドを除去
+   - `image` + `image_caption` → `images` 配列に変換
+   - `"mode": "content"` を追加
+
+---
+
 ### body テキストの書き方
 
 - `\n\n` で段落区切り
@@ -323,14 +407,17 @@ start output/<名前>/poster.html
 デザインの自由度を最大化したい場合（43パターン + 5スタイル × 5テーマ）。
 
 ```bash
-# 1. PDF → Markdown + 画像を書き出す
+# 1. PDF → Markdown + 両JSON + 画像を書き出す
 python -m builder paper.pdf --export-md
+# → content.md, slide_plan.json, slide_content.json が出力される
 
-# 2. /slidekit-create で content.md を参考ファイルとして渡す
+# 2. /slidekit-create で slide_content.json を参考ファイルとして渡す
+#    （slide_content.json 優先。content.md は JSON がない場合のフォールバック）
 ```
 
 - PDF からの自動抽出ではメタ情報がずれる場合がある → Claude が修正
 - 画像は `output/<名前>/images/` に抽出済み → 同じフォルダを指定すれば参照可能
+- レビューアプリ（`demo/slide_reviewer.html`）で素材モードで編集してから create に渡すこともできる
 
 ---
 
