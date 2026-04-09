@@ -227,6 +227,7 @@
   <button class="btn" id="btnAddSlide" style="display:none" onclick="addSlide()">+ スライド追加</button>
   <button class="btn btn-primary" id="btnExport" style="display:none" onclick="exportJSON()">保存</button>
   <button class="btn" onclick="document.getElementById('fileInput').click()">JSON を開く</button>
+  <button class="btn" onclick="createNew()">新規作成</button>
   <input type="file" id="fileInput" accept=".json" style="display:none">
 </div>
 
@@ -248,10 +249,16 @@
 <div class="main" id="mainArea">
   <div class="welcome" id="welcomeScreen">
     <h2>SlideKit Reviewer</h2>
-    <p>slide_plan.json / slide_content.json を読み込んで、<br>スライドの内容を確認・編集できます。</p>
-    <div class="drop-area" onclick="document.getElementById('fileInput').click()">
-      <p style="font-size:28px; margin-bottom:10px">&#128196;</p>
-      <p>JSON をドラッグ＆ドロップ<br>またはクリックして選択</p>
+    <p>スライド構成の確認・編集、または新規作成ができます。</p>
+    <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center">
+      <div class="drop-area" onclick="document.getElementById('fileInput').click()" style="flex:1; min-width:200px; max-width:280px">
+        <p style="font-size:28px; margin-bottom:10px">&#128196;</p>
+        <p>JSON をドラッグ＆ドロップ<br>またはクリックして選択</p>
+      </div>
+      <div class="drop-area" onclick="createNew()" style="flex:1; min-width:200px; max-width:280px">
+        <p style="font-size:28px; margin-bottom:10px">&#10133;</p>
+        <p>新規作成<br>空のスライド構成を作成</p>
+      </div>
     </div>
     <p style="font-size:12px; color:var(--text2); margin-top:8px">
       <b>構成モード</b> = slide_plan.json (builder用, type付き)<br>
@@ -708,6 +715,24 @@ function deleteSlide(idx) {
   if (!confirm('スライド ' + (idx + 1) + ' を削除しますか？')) return;
   planData.slides.splice(idx, 1);
   if (currentSlide >= planData.slides.length) currentSlide = planData.slides.length - 1;
+  render();
+}
+
+function createNew() {
+  planData = {
+    meta: {
+      title: '', authors: '', affiliation: '',
+      subtitle: '', theme: 'academic-blue', date: '',
+      presentation_type: 'basic-research', language: 'ja'
+    },
+    slides: [
+      { heading: '', body: '', images: [] }
+    ]
+  };
+  currentSlide = 0;
+  showingMeta = true;
+  setMode('content');
+  document.getElementById('imageBanner').className = 'image-banner';
   render();
 }
 
