@@ -9,6 +9,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from html import escape as html_escape
+
 from .content_bundle import (
     ContentBundle, ImageEntry, TableEntry, ChartEntry,
     text_to_html, slug,
@@ -54,6 +56,7 @@ class SlideKitBuilder:
             (out / filename).write_text(html, encoding="utf-8")
 
         self._write_index(out, bundle.title, len(slides))
+        self._write_presenter(out, bundle.title, len(slides))
 
         total = len(slides)
         print(f"生成完了: {total} スライド → {out}")
@@ -345,8 +348,8 @@ class SlideKitBuilder:
 
         if template_path.exists():
             template = template_path.read_text(encoding="utf-8")
-            # タイトル置換
-            template = template.replace("{{TITLE}}", title)
+            # タイトル置換（HTMLエスケープで安全に埋め込む）
+            template = template.replace("{{TITLE}}", html_escape(title))
             # スライドフレーム生成
             frames = []
             for i in range(slide_count):
@@ -360,6 +363,33 @@ class SlideKitBuilder:
         else:
             # テンプレートがない場合はシンプルなビューアを生成
             self._write_simple_index(output_dir, title, slide_count)
+
+    def _write_presenter(self, output_dir: Path, title: str, slide_count: int) -> None:
+        """発表者モード用の presenter.html を生成する"""
+        import json
+
+        template_path = (
+            Path(__file__).parent.parent
+            / "skills" / "slidekit-create" / "references" / "presenter-template.html"
+        )
+
+        if not template_path.exists():
+            return
+
+        template = template_path.read_text(encoding="utf-8")
+        template = template.replace("{{TITLE}}", html_escape(title))
+        template = template.replace("/* {{SLIDE_COUNT}} */1", str(slide_count))
+
+        # slide_plan.json を読み込んで直接埋め込む（file:// でも動作するように）
+        plan_path = output_dir / "slide_plan.json"
+        if plan_path.exists():
+            plan_json = plan_path.read_text(encoding="utf-8")
+            template = template.replace(
+                "/* {{SLIDE_PLAN_JSON}} */null",
+                plan_json,
+            )
+
+        (output_dir / "presenter.html").write_text(template, encoding="utf-8")
 
     def _write_simple_index(self, output_dir: Path, title: str, slide_count: int) -> None:
         """シンプルな iframe ビューアを生成する（テンプレート不在時のフォールバック）"""
@@ -411,6 +441,12 @@ class SlideKitBuilder:
             frames[idx].classList.add('is-active');
             document.getElementById('current').textContent = String(idx + 1).padStart(2, '0');
         }}
+        // BroadcastChannel による発表者モード同期
+        var channel = new BroadcastChannel('slidekit-presenter');
+        var isRemote = false;
+        var origGo = go;
+        go = function(d) {{ origGo(d); if (!isRemote) channel.postMessage({{type:'slideChanged',index:idx,total:total}}); }};
+        channel.onmessage = function(e) {{ if (e.data.type==='slideChanged') {{ isRemote=true; frames[idx].classList.remove('is-active'); idx=e.data.index; frames[idx].classList.add('is-active'); document.getElementById('current').textContent=String(idx+1).padStart(2,'0'); isRemote=false; }} }};
         document.addEventListener('keydown', function(e) {{
             if (e.key === 'ArrowRight' || e.key === ' ') go(1);
             else if (e.key === 'ArrowLeft') go(-1);

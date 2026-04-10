@@ -67,7 +67,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
     slides: list[dict] = []
 
     # タイトルスライド
-    slides.append({"type": "title"})
+    slides.append({"type": "title", "notes": ""})
 
     ordered = get_ordered_sections(bundle.sections)
     image_queue = list(bundle.images)
@@ -83,6 +83,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
             slides.append({
                 "type": "section-break",
                 "heading": label,
+                "notes": "",
             })
 
         heading = section_to_label(section_name, bundle.language)
@@ -98,6 +99,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
                 "body": body,
                 "image": img.rel_path,
                 "image_caption": img.caption or img.filename,
+                "notes": "",
             })
         # 方法セクション → テーブル or 画像
         elif section_name == "methods":
@@ -109,6 +111,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
                     "body": body,
                     "table_html": table.html,
                     "table_caption": table.caption,
+                    "notes": "",
                 })
             elif image_queue:
                 img = image_queue.pop(0)
@@ -118,12 +121,14 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
                     "body": body,
                     "image": img.rel_path,
                     "image_caption": img.caption or img.filename,
+                    "notes": "",
                 })
             else:
                 slides.append({
                     "type": "text-only",
                     "heading": heading,
                     "body": body,
+                    "notes": "",
                 })
         # 画像が残っていれば 2 カラム
         elif image_queue and section_name not in ("references", "acknowledgements"):
@@ -134,6 +139,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
                 "body": body,
                 "image": img.rel_path,
                 "image_caption": img.caption or img.filename,
+                "notes": "",
             })
         # テキストのみ
         else:
@@ -141,6 +147,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
                 "type": "text-only",
                 "heading": heading,
                 "body": body,
+                "notes": "",
             })
 
     # 余った画像をスライドに
@@ -151,6 +158,7 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
             "body": "",
             "image": img.rel_path,
             "image_caption": img.caption or img.filename,
+            "notes": "",
         })
 
     # 余ったテーブルをスライドに
@@ -161,10 +169,11 @@ def _plan_from_sections(bundle: ContentBundle) -> dict:
             "body": "",
             "table_html": table.html,
             "table_caption": table.caption,
+            "notes": "",
         })
 
     # 結論スライド
-    slides.append({"type": "conclusion"})
+    slides.append({"type": "conclusion", "notes": ""})
 
     return {
         "meta": _build_meta(bundle),
@@ -210,6 +219,7 @@ def export_content(bundle: ContentBundle, output_path: Path | None = None) -> st
             "heading": slide.get("heading", ""),
             "body": slide.get("body", ""),
             "images": images,
+            "notes": slide.get("notes", ""),
         })
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

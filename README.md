@@ -24,6 +24,8 @@
 | **--export-plan / --export-content** | slide_plan.json（構成モード）/ slide_content.json（素材モード）を出力 |
 | **slide_reviewer.html** | ブラウザで JSON を読み込み、スライド構成・素材を確認・編集するレビューアプリ |
 | **--poster** | 学会ポスター生成（A0 3カラム / A1 2カラム、Tailwind grid） |
+| **発表者モード** | スライド操作に連動するスピーカーノート画面（BroadcastChannel 同期、タイマー付き） |
+| **notes_editor.html** | 発表ノート（スピーカーノート）の確認・編集ツール。文字数・読み上げ時間表示 |
 | **言語選択** | `/slidekit-create`, `/slidekit-build` に日本語/英語選択ステップを追加 |
 | **awesome-design-md** | Stripe, Notion 等のデザインシステム参照（submodule） |
 
@@ -83,11 +85,12 @@ flowchart TD
     PLAN -->|"slide_content.json"| CREATE
     TMPL["既存 PDF"] -->|"/slidekit-templ"| TEMPLATES["テンプレート登録"]
     TEMPLATES --> CREATE
-    AUTO --> HTML["HTML スライド群<br/>001.html ~ NNN.html<br/>+ index.html"]
+    AUTO --> HTML["HTML スライド群<br/>001.html ~ NNN.html<br/>+ index.html + presenter.html"]
     CREATE --> HTML
     HTML -->|"/slide-check"| CHECK["確認・修正<br/>（agent-browser）"]
     HTML -->|"/pptx"| PPTX["PowerPoint"]
     HTML -->|"ブラウザ"| PRESENT["プレゼン<br/>（矢印キー操作）"]
+    HTML -->|"P キー"| PRESENTER["発表者モード<br/>（ノート・タイマー・同期）"]
     CHECK --> HTML
 ```
 
@@ -107,6 +110,8 @@ python -m builder paper.pdf
 output/mizuno_20260407_2130/
 ├── 001.html ~ 015.html    ← 個別スライド
 ├── index.html             ← ビューア
+├── presenter.html         ← 発表者モード（自動生成）
+├── slide_plan.json        ← 構成データ（notes 含む）
 └── images/                ← 抽出画像
 ```
 
@@ -117,6 +122,7 @@ output/mizuno_20260407_2130/
 | 次のスライド | → / Space / クリック |
 | 前のスライド | ← |
 | フルスクリーン | F |
+| 発表者モード | P |
 | PDF 保存 | PDF ボタン |
 
 ### 方法 2: Claude が構成設計（/slidekit-build）
@@ -265,15 +271,41 @@ Claude が `/slidekit-build` で作成する構成ファイル。
     "language": "ja"
   },
   "slides": [
-    { "type": "title" },
-    { "type": "text-only", "heading": "背景", "body": "テキスト..." },
-    { "type": "two-column", "heading": "方法", "body": "...", "image": "images/fig01.jpeg", "image_caption": "Figure 1" },
-    { "type": "figure-focus", "heading": "結果", "image": "images/fig02.jpeg", "image_caption": "Figure 2" },
+    { "type": "title", "notes": "皆さん、こんにちは。本日は..." },
+    { "type": "text-only", "heading": "背景", "body": "テキスト...", "notes": "まず背景からご説明します..." },
+    { "type": "two-column", "heading": "方法", "body": "...", "image": "images/fig01.jpeg", "image_caption": "Figure 1", "notes": "方法についてご説明します..." },
+    { "type": "figure-focus", "heading": "結果", "image": "images/fig02.jpeg", "image_caption": "Figure 2", "notes": "こちらが主要な結果です..." },
     { "type": "section-break", "heading": "考察" },
-    { "type": "conclusion" }
+    { "type": "conclusion", "notes": "ご清聴ありがとうございました" }
   ]
 }
 ```
+
+---
+
+## 発表者モード（Presenter Mode）
+
+スライド操作に連動するスピーカーノート画面。プレゼン練習や本番で使用できます。
+
+### 起動方法
+
+`index.html` を開いた状態で **P キー** を押す、または右下の 🎤 ボタンをクリック。
+
+### 発表者画面の機能
+
+| 機能 | 説明 |
+|------|------|
+| 現在のスライド | 上半分に表示 |
+| 次のスライド | プレビュー表示 |
+| スピーカーノート | 下半分に大きく表示（slide_plan.json の `notes` フィールド） |
+| タイマー | 経過時間（HH:MM:SS）、開始/リセットボタン |
+| 文字サイズ調整 | A-/A+ ボタンで 12px〜40px |
+| 双方向同期 | 聴衆画面・発表者画面のどちらからでもスライド操作可能（BroadcastChannel） |
+
+### 発表ノートの作成・編集
+
+1. **AI 自動生成**: `/slidekit-build` でスライド生成時に `notes` フィールドが自動生成される
+2. **手動編集**: `notes_editor.html` をブラウザで開き、`slide_plan.json` を読み込んで各スライドのノートを編集・保存
 
 ---
 
@@ -316,6 +348,7 @@ Claude が `/slidekit-build` で作成する構成ファイル。
 slidekit/
 ├── README.md                        ← このファイル
 ├── slide_reviewer.html              ← 【追加】スライド構成レビューアプリ
+├── notes_editor.html                ← 【追加】発表ノート編集ツール
 ├── builder/                         ← 【追加】自動生成パイプライン
 │   ├── cli.py                       #   CLI（python -m builder）
 │   ├── slidekit_builder.py          #   メインビルダー
@@ -381,6 +414,8 @@ pip install pymupdf Pillow
 - `skills/slidekit-build/` — Claude 構成設計スキル
 - `skills/slide-check/` — [agent-browser](https://github.com/vercel-labs/agent-browser) を使った確認・修正スキル
 - `design/awesome-design-md/` — デザインリファレンス（[VoltAgent/awesome-design-md](https://github.com/VoltAgent/awesome-design-md) を利用、任意導入）
+- `notes_editor.html` — 発表ノート編集ツール
+- 発表者モード（`presenter.html`）— BroadcastChannel 同期、タイマー、ノート表示
 - `slidekit-create` への言語選択ステップ追加
 - `slidekit-templ` の PyMuPDF 化 + Figma グリッド分割モード追加
 - `builder/utils/fix_pptx.py` — PptxGenJS v4 の既知バグ修正スクリプト

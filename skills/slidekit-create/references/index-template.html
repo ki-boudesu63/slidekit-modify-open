@@ -145,6 +145,7 @@
     <button id="btn-next">Next &rarr;</button>
     <button id="btn-pdf" title="PDF">PDF</button>
     <button id="btn-fs" title="Fullscreen (F)">&#x26F6;</button>
+    <button id="btn-presenter" title="発表者モード (P)">&#127908;</button>
   </div>
 </div>
 
@@ -152,6 +153,22 @@
 (() => {
   const frames = () => [...document.querySelectorAll('.slide-frame')];
   let cur = 0;
+
+  // BroadcastChannel for presenter sync
+  const channel = new BroadcastChannel('slidekit-presenter');
+  let isRemoteUpdate = false;
+
+  function broadcastSlide() {
+    channel.postMessage({ type: 'slideChanged', index: cur, total: frames().length });
+  }
+
+  channel.onmessage = (e) => {
+    if (e.data.type === 'slideChanged') {
+      isRemoteUpdate = true;
+      show(e.data.index);
+      isRemoteUpdate = false;
+    }
+  };
 
   function show(n) {
     const all = frames();
@@ -161,6 +178,7 @@
     const el = document.querySelector('.slide-counter');
     if (el) el.textContent =
       `${String(cur + 1).padStart(2, '0')} / ${String(all.length).padStart(2, '0')}`;
+    if (!isRemoteUpdate) broadcastSlide();
   }
 
   const next = () => show(cur + 1);
@@ -171,6 +189,7 @@
     if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); next(); }
     if (['ArrowLeft', 'ArrowUp'].includes(e.key))         { e.preventDefault(); prev(); }
     if (e.key === 'f' || e.key === 'F')                   { toggleFullscreen(); }
+    if (e.key === 'p' || e.key === 'P')                   { openPresenter(); }
   });
 
   // Click on deck area (excluding nav UI)
@@ -184,6 +203,12 @@
   document.getElementById('btn-next')?.addEventListener('click', next);
   document.getElementById('btn-fs')?.addEventListener('click', toggleFullscreen);
   document.getElementById('btn-pdf')?.addEventListener('click', exportPDF);
+  document.getElementById('btn-presenter')?.addEventListener('click', openPresenter);
+
+  // Open presenter view
+  function openPresenter() {
+    window.open('presenter.html', 'slidekit-presenter', 'width=1200,height=800');
+  }
 
   // Fullscreen
   function toggleFullscreen() {

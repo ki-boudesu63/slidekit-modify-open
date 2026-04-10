@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{TITLE}} - Presenter</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0f1117;
+      color: #e4e6f0;
+      font-family: 'Segoe UI', 'Noto Sans JP', sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* -- Header bar -- */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .6rem 1.2rem;
+      background: #1a1d27;
+      border-bottom: 1px solid rgba(108,138,255,.15);
+      flex-shrink: 0;
+    }
+
+    .header-title {
+      font-size: .95rem;
+      font-weight: 600;
+      color: #6c8aff;
+      letter-spacing: .04em;
+    }
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .timer {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 1.1rem;
+      color: #e4e6f0;
+      letter-spacing: .08em;
+    }
+
+    .slide-counter {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 1.1rem;
+      color: #8b8fa8;
+      letter-spacing: .08em;
+    }
+
+    .header-buttons {
+      display: flex;
+      gap: .4rem;
+    }
+
+    .header-buttons button {
+      background: rgba(108,138,255,.12);
+      border: 1px solid rgba(108,138,255,.25);
+      color: #8b8fa8;
+      padding: .3rem .7rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: .75rem;
+      font-family: 'Segoe UI', 'Noto Sans JP', sans-serif;
+      transition: background .12s, color .12s;
+    }
+    .header-buttons button:hover {
+      background: rgba(108,138,255,.25);
+      color: #e4e6f0;
+    }
+
+    /* -- Main area: slides (upper half) -- */
+    .main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      gap: 0;
+    }
+
+    .slide-panel {
+      display: flex;
+      flex-direction: column;
+      padding: .4rem .6rem;
+      min-width: 0;
+    }
+
+    .slide-panel-current {
+      flex: 0 0 60%;
+      max-width: 60%;
+    }
+
+    .slide-panel-next {
+      flex: 0 0 40%;
+      max-width: 40%;
+      border-left: 1px solid rgba(108,138,255,.1);
+    }
+
+    .slide-label {
+      font-size: .7rem;
+      color: #8b8fa8;
+      margin-bottom: .3rem;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    .slide-wrapper {
+      flex: 1;
+      min-height: 0;
+      background: #000;
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .slide-wrapper iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1280px;
+      height: 720px;
+      border: none;
+      transform-origin: top left;
+    }
+
+    .slide-wrapper .end-message {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: #8b8fa8;
+      font-size: 1rem;
+      letter-spacing: .05em;
+    }
+
+    /* -- Notes panel (lower half) -- */
+    .notes-panel {
+      flex: 1;
+      min-height: 120px;
+      background: #1a1d27;
+      border-top: 1px solid rgba(108,138,255,.15);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .4rem 1rem;
+      border-bottom: 1px solid rgba(108,138,255,.08);
+      flex-shrink: 0;
+    }
+
+    .notes-label {
+      font-size: .75rem;
+      color: #8b8fa8;
+      letter-spacing: .08em;
+    }
+
+    .notes-meta {
+      font-size: .7rem;
+      color: #6c8aff;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    }
+
+    .font-size-controls {
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+    }
+    .font-size-controls button {
+      background: rgba(108,138,255,.1);
+      border: 1px solid rgba(108,138,255,.2);
+      color: #8b8fa8;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: .85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background .12s, color .12s;
+    }
+    .font-size-controls button:hover {
+      background: rgba(108,138,255,.25);
+      color: #e4e6f0;
+    }
+    .font-size-label {
+      font-size: .65rem;
+      color: #8b8fa8;
+      min-width: 32px;
+      text-align: center;
+    }
+
+    .notes-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem 1.5rem;
+      font-size: 20px;
+      line-height: 1.8;
+      color: #e4e6f0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .notes-content::-webkit-scrollbar {
+      width: 6px;
+    }
+    .notes-content::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .notes-content::-webkit-scrollbar-thumb {
+      background: rgba(108,138,255,.2);
+      border-radius: 3px;
+    }
+
+    /* -- Navigation bar -- */
+    .nav-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      padding: .4rem;
+      background: #1a1d27;
+      border-top: 1px solid rgba(108,138,255,.1);
+      flex-shrink: 0;
+    }
+
+    .nav-bar button {
+      background: rgba(108,138,255,.1);
+      border: 1px solid rgba(108,138,255,.2);
+      color: #8b8fa8;
+      padding: .35rem 1.2rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: .8rem;
+      font-family: 'Segoe UI', 'Noto Sans JP', sans-serif;
+      transition: background .12s, color .12s;
+    }
+    .nav-bar button:hover {
+      background: rgba(108,138,255,.25);
+      color: #e4e6f0;
+    }
+
+    @media (max-width: 900px) {
+      .slide-panel-current { flex: 0 0 55%; max-width: 55%; }
+      .slide-panel-next { flex: 0 0 45%; max-width: 45%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <span class="header-title">SlideKit Presenter</span>
+  <div class="header-info">
+    <span class="timer" id="timer">00:00:00</span>
+    <span class="slide-counter" id="counter">01 / 01</span>
+  </div>
+  <div class="header-buttons">
+    <button id="btn-start">開始</button>
+    <button id="btn-reset">リセット</button>
+  </div>
+</div>
+
+<!-- Slide previews -->
+<div class="main">
+  <div class="slide-panel slide-panel-current">
+    <div class="slide-label">現在のスライド</div>
+    <div class="slide-wrapper" id="current-wrapper">
+      <iframe id="current-slide" src="" sandbox="allow-same-origin allow-scripts"></iframe>
+    </div>
+  </div>
+  <div class="slide-panel slide-panel-next">
+    <div class="slide-label">次のスライド</div>
+    <div class="slide-wrapper" id="next-wrapper">
+      <iframe id="next-slide" src="" sandbox="allow-same-origin allow-scripts"></iframe>
+      <div class="end-message" id="end-message" style="display:none;">最終スライド</div>
+    </div>
+  </div>
+</div>
+
+<!-- Speaker notes -->
+<div class="notes-panel">
+  <div class="notes-header">
+    <span class="notes-label">発表ノート</span>
+    <div class="font-size-controls">
+      <button id="btn-font-down" title="文字を小さく">A-</button>
+      <span class="font-size-label" id="font-size-label">20px</span>
+      <button id="btn-font-up" title="文字を大きく">A+</button>
+    </div>
+    <span class="notes-meta" id="notes-meta"></span>
+  </div>
+  <div class="notes-content" id="notes-content"></div>
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar">
+  <button id="btn-prev">&larr; 前へ</button>
+  <button id="btn-next">次へ &rarr;</button>
+</div>
+
+<script>const TOTAL_SLIDES = /* {{SLIDE_COUNT}} */1;</script>
+<!-- ビルド時にスライドプランデータが埋め込まれる -->
+<script>const EMBEDDED_SLIDE_PLAN = /* {{SLIDE_PLAN_JSON}} */null;</script>
+
+<script>
+(() => {
+  // -- State --
+  let cur = 0;
+  let total = TOTAL_SLIDES;
+  let slidePlan = null;
+
+  // -- Elements --
+  const elCounter = document.getElementById('counter');
+  const elTimer = document.getElementById('timer');
+  const elCurrentSlide = document.getElementById('current-slide');
+  const elNextSlide = document.getElementById('next-slide');
+  const elEndMessage = document.getElementById('end-message');
+  const elNotesContent = document.getElementById('notes-content');
+  const elNotesMeta = document.getElementById('notes-meta');
+  const elCurrentWrapper = document.getElementById('current-wrapper');
+  const elNextWrapper = document.getElementById('next-wrapper');
+
+  // -- BroadcastChannel --
+  const channel = new BroadcastChannel('slidekit-presenter');
+  let isRemoteUpdate = false;
+
+  channel.onmessage = (e) => {
+    if (e.data.type === 'slideChanged') {
+      isRemoteUpdate = true;
+      if (typeof e.data.total === 'number') total = e.data.total;
+      show(e.data.index);
+      isRemoteUpdate = false;
+    }
+  };
+
+  function broadcastSlide() {
+    channel.postMessage({ type: 'slideChanged', index: cur, total: total });
+  }
+
+  // -- Slide path helper --
+  function slidePath(index) {
+    return (index + 1).toString().padStart(3, '0') + '.html';
+  }
+
+  // -- Scale iframes to fit wrapper --
+  function scaleIframes() {
+    [elCurrentWrapper, elNextWrapper].forEach(wrapper => {
+      if (!wrapper) return;
+      const iframe = wrapper.querySelector('iframe');
+      if (!iframe) return;
+      const w = wrapper.clientWidth;
+      const h = wrapper.clientHeight;
+      const scale = Math.min(w / 1280, h / 720);
+      iframe.style.transform = `scale(${scale})`;
+    });
+  }
+
+  // -- Speaking time calculation (Japanese: 400 chars/min) --
+  const CHARS_PER_MINUTE = 400;
+
+  function calcSpeakingTime(text) {
+    if (!text) return { chars: 0, seconds: 0 };
+    const chars = text.length;
+    const seconds = Math.round((chars / CHARS_PER_MINUTE) * 60);
+    return { chars, seconds };
+  }
+
+  function formatSpeakingTime(seconds) {
+    if (seconds < 60) return `約${seconds}秒`;
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    if (sec === 0) return `約${min}分`;
+    return `約${min}分${sec}秒`;
+  }
+
+  // -- Show slide --
+  function show(n) {
+    cur = Math.max(0, Math.min(n, total - 1));
+
+    // Update current slide iframe
+    elCurrentSlide.src = slidePath(cur);
+
+    // Update next slide iframe or show end message
+    if (cur < total - 1) {
+      elNextSlide.style.display = '';
+      elEndMessage.style.display = 'none';
+      elNextSlide.src = slidePath(cur + 1);
+    } else {
+      elNextSlide.style.display = 'none';
+      elEndMessage.style.display = '';
+    }
+
+    // Update counter
+    elCounter.textContent =
+      `${String(cur + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+
+    // Update notes
+    updateNotes();
+
+    // Start timer on first user navigation (skip initial show(0) call)
+    if (initialized && !timerStarted) startTimer();
+
+    // Broadcast to index.html (only if not a remote update)
+    if (!isRemoteUpdate) broadcastSlide();
+
+    // Rescale iframes after src change
+    requestAnimationFrame(scaleIframes);
+  }
+
+  // -- Notes --
+  function updateNotes() {
+    if (!slidePlan || !slidePlan.slides) {
+      elNotesContent.textContent = '';
+      elNotesMeta.textContent = '';
+      return;
+    }
+
+    const slide = slidePlan.slides[cur];
+    const notes = slide?.notes || '';
+
+    elNotesContent.textContent = notes;
+
+    const { chars, seconds } = calcSpeakingTime(notes);
+    if (chars > 0) {
+      elNotesMeta.textContent = `文字数: ${chars}  読み上げ目安: ${formatSpeakingTime(seconds)}`;
+    } else {
+      elNotesMeta.textContent = '';
+    }
+  }
+
+  // -- Load slide plan (embedded by builder or fetched as fallback) --
+  function loadSlidePlan() {
+    // ビルド時に埋め込まれたデータを優先
+    if (typeof EMBEDDED_SLIDE_PLAN !== 'undefined' && EMBEDDED_SLIDE_PLAN) {
+      slidePlan = EMBEDDED_SLIDE_PLAN;
+      updateNotes();
+      return;
+    }
+    // フォールバック: fetch (HTTP サーバー経由の場合)
+    fetch('slide_plan.json')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) { slidePlan = data; updateNotes(); } })
+      .catch(() => {});
+  }
+
+  // -- Timer --
+  let timerStarted = false;
+  let timerRunning = false;
+  let timerInterval = null;
+  let elapsed = 0;
+
+  function startTimer() {
+    if (timerRunning) return;
+    timerStarted = true;
+    timerRunning = true;
+    timerInterval = setInterval(() => {
+      elapsed++;
+      renderTimer();
+    }, 1000);
+  }
+
+  function resetTimer() {
+    timerRunning = false;
+    timerStarted = false;
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = null;
+    elapsed = 0;
+    renderTimer();
+  }
+
+  function renderTimer() {
+    const h = String(Math.floor(elapsed / 3600)).padStart(2, '0');
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
+    const s = String(elapsed % 60).padStart(2, '0');
+    elTimer.textContent = `${h}:${m}:${s}`;
+  }
+
+  // -- Navigation --
+  const next = () => show(cur + 1);
+  const prev = () => show(cur - 1);
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); next(); }
+    if (['ArrowLeft', 'ArrowUp'].includes(e.key))         { e.preventDefault(); prev(); }
+  });
+
+  // Buttons
+  document.getElementById('btn-prev')?.addEventListener('click', prev);
+  document.getElementById('btn-next')?.addEventListener('click', next);
+  document.getElementById('btn-start')?.addEventListener('click', startTimer);
+  document.getElementById('btn-reset')?.addEventListener('click', resetTimer);
+
+  // -- Font size control --
+  let notesFontSize = 20;
+  const FONT_MIN = 12;
+  const FONT_MAX = 40;
+  const FONT_STEP = 2;
+  const elFontLabel = document.getElementById('font-size-label');
+
+  function setFontSize(size) {
+    notesFontSize = Math.max(FONT_MIN, Math.min(FONT_MAX, size));
+    elNotesContent.style.fontSize = notesFontSize + 'px';
+    elFontLabel.textContent = notesFontSize + 'px';
+  }
+
+  document.getElementById('btn-font-up')?.addEventListener('click', () => setFontSize(notesFontSize + FONT_STEP));
+  document.getElementById('btn-font-down')?.addEventListener('click', () => setFontSize(notesFontSize - FONT_STEP));
+
+  // -- Init --
+  let initialized = false;
+  window.addEventListener('resize', scaleIframes);
+  loadSlidePlan();
+  show(0);
+  initialized = true;
+})();
+</script>
+</body>
+</html>
