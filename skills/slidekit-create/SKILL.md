@@ -643,6 +643,63 @@ After all slide HTML files are generated, create `{output_dir}/index.html` — a
 
 ---
 
+## Phase 5.5: presenter.html 生成
+
+After index.html, create `{output_dir}/presenter.html` — a presenter view with current/next slide preview, speaker notes, and timer.
+
+**必ず [references/presenter-template.html](references/presenter-template.html) をそのまま使用すること。** テンプレートには以下がすべて含まれている:
+
+- 現在のスライド（60%幅）+ 次のスライド（40%幅）のプレビュー
+- 発表ノートパネル（フォントサイズ調整可能）
+- タイマー（開始/リセット）
+- スライドカウンター
+- BroadcastChannel による index.html との同期
+- キーボードナビゲーション
+
+### プレースホルダーの置換
+
+1. **`{{TITLE}}`** → presentation title from Phase 1
+2. **`/* {{SLIDE_COUNT}} */1`** → total slide count (e.g., `36`)
+3. **`/* {{SLIDE_PLAN_JSON}} */null`** → `slide_plan.json` の内容をインラインで埋め込む
+
+```javascript
+// 例: 36枚の場合
+const TOTAL_SLIDES = 36;
+const EMBEDDED_SLIDE_PLAN = {"meta":{...},"slides":[...]};
+```
+
+### 発表ノートの取得
+
+presenter.html は以下の優先順位で発表ノートを取得する:
+
+1. **埋め込みデータ** — `EMBEDDED_SLIDE_PLAN` に `slide_plan.json` の内容が埋め込まれている場合、それを使用
+2. **fetch フォールバック** — 埋め込みがない場合、`slide_plan.json` を HTTP fetch で読み込む
+
+### Important
+
+- presenter.html は **index.html と同じディレクトリ** に配置すること
+- `slide_plan.json` の `notes` フィールドが発表ノートとして表示される
+- BroadcastChannel `slidekit-presenter` で index.html と presenter.html が双方向同期する
+
+---
+
+## 出力ファイル一覧（必須）
+
+スライド生成完了時、以下の **4ファイル + スライドHTML** が出力ディレクトリに存在しなければならない:
+
+| ファイル | 生成Phase | 説明 |
+|----------|-----------|------|
+| `slide_content.json` | Phase 3.5 | 素材モード JSON（レビュー・編集用） |
+| `slide_plan.json` | Phase 3.5 | 構成モード JSON（builder CLI 用、presenter.html のノート源） |
+| `index.html` | Phase 5 | スライドビューア（発表用、keyboard nav + fullscreen） |
+| `presenter.html` | Phase 5.5 | 発表者ツール（ノート + タイマー + 次スライド） |
+| `NNN.html` | Phase 4 | 各スライド（001.html 〜） |
+| `images/` | Phase 4 | 画像ディレクトリ（画像がある場合） |
+
+**この4ファイル（+ スライドHTML）の出力は必須であり、省略してはならない。**
+
+---
+
 ## Phase 6: チェックリスト確認
 
 After Phase 4 and Phase 5 are complete, verify the following. Fix any issues before delivering to the user.
@@ -665,6 +722,9 @@ After Phase 4 and Phase 5 are complete, verify the following. Fix any issues bef
 - [ ] No one-off colors outside palette
 - [ ] Content density guidelines followed
 - [ ] `index.html` generated with iframes for all slides + navigation engine
+- [ ] `presenter.html` generated with slide plan embedded
+- [ ] `slide_content.json` saved with correct format (mode: "content")
+- [ ] `slide_plan.json` saved with correct format (mode: "plan", notes included)
 
 ---
 
