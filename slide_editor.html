@@ -1539,7 +1539,8 @@ ${slideContent}
       return true;
     });
 
-    // 全子要素の現在位置・状態をフロー変更前に記録
+    // 親と全子要素の現在位置・状態をフロー変更前に記録
+    const parentOrigRect = getElementRect(parent);
     const slideRects = children.map(child => getElementRect(child));
     const skipFlags = children.map(child => {
       const cs = getComputedStyle(child);
@@ -1551,7 +1552,11 @@ ${slideContent}
       return (cs.position === 'absolute' || cs.position === 'fixed');
     });
 
-    // まず全子要素をabsoluteに変換（left/topは後で一括設定）
+    // 親コンテナのサイズを固定して背景・レイアウトの縮小を防ぐ
+    parent.style.width = parentOrigRect.w + 'px';
+    parent.style.height = parentOrigRect.h + 'px';
+
+    // 全子要素をabsoluteに変換（left/topは後で一括設定）
     children.forEach((child, i) => {
       if (skipFlags[i]) return;
       if (!wasAbsolute[i]) {
@@ -1561,33 +1566,41 @@ ${slideContent}
       }
     });
 
-    // 全子要素のposition変更後の親の位置を取得して基準にする
+    // 変更後の親の位置を取得（サイズ固定済みなので位置はほぼ不変）
     const parentRect = getElementRect(parent);
+    // 親のborder幅を取得（absoluteのleft/topはpadding boxからの相対値のため）
+    const parentCS = getComputedStyle(parent);
+    const borderL = parseFloat(parentCS.borderLeftWidth) || 0;
+    const borderT = parseFloat(parentCS.borderTopWidth) || 0;
 
-    // left/topを設定（変更後の親位置からの相対値）
+    // left/topを設定（padding box基準 = border幅を差し引く）
     children.forEach((child, i) => {
       if (skipFlags[i]) return;
-      child.style.left = (slideRects[i].x - parentRect.x) + 'px';
-      child.style.top = (slideRects[i].y - parentRect.y) + 'px';
+      child.style.left = (slideRects[i].x - parentRect.x - borderL) + 'px';
+      child.style.top = (slideRects[i].y - parentRect.y - borderT) + 'px';
       child.style.right = 'auto';
       child.style.bottom = 'auto';
     });
   }
 
+  // transform: translate() の現在値を取得
+  function getTranslateValues(el) {
+    const t = el.style.transform;
+    if (!t) return { x: 0, y: 0 };
+    const m = t.match(/translate\(\s*([^,]+),\s*([^)]+)\)/);
+    if (!m) return { x: 0, y: 0 };
+    return { x: parseFloat(m[1]) || 0, y: parseFloat(m[2]) || 0 };
+  }
+
   function moveElement(el, dx, dy) {
-    ensureAbsoluteWithInlinePos(el);
-    const left = parseFloat(el.style.left) || 0;
-    const top = parseFloat(el.style.top) || 0;
-    el.style.left = (left + dx) + 'px';
-    el.style.top = (top + dy) + 'px';
+    const t = getTranslateValues(el);
+    el.style.transform = `translate(${t.x + dx}px, ${t.y + dy}px)`;
   }
 
   // ============================================================
   // 要素操作: リサイズ
   // ============================================================
   function resizeElement(el, dir, dx, dy, shiftKey) {
-    ensureAbsoluteWithInlinePos(el);
-
     let x = resizeStartRect.x;
     let y = resizeStartRect.y;
     let w = resizeStartRect.w;
@@ -1618,11 +1631,11 @@ ${slideContent}
     w = Math.max(w, 10);
     h = Math.max(h, 10);
 
-    el.style.left = x + 'px';
-    el.style.top = y + 'px';
+    // 位置変更はtranslateで（フローを壊さない）
+    const t = el._resizeTranslateStart || { x: 0, y: 0 };
+    el.style.transform = `translate(${t.x + (x - resizeStartRect.x)}px, ${t.y + (y - resizeStartRect.y)}px)`;
     el.style.width = w + 'px';
     el.style.height = h + 'px';
-    // Tailwindの幅高さクラスを上書き
     el.style.minWidth = 'unset';
     el.style.maxWidth = 'unset';
     el.style.minHeight = 'unset';
@@ -1797,16 +1810,18 @@ ${slideContent}
     if (selectedElements.length === 0) return;
     saveHistory();
     selectedElements.forEach(el => {
-      ensureAbsoluteWithInlinePos(el);
       const rect = getElementRect(el);
+      const t = getTranslateValues(el);
+      let targetX = rect.x, targetY = rect.y;
       switch (type) {
-        case 'left':    el.style.left = '0px'; break;
-        case 'centerH': el.style.left = ((SLIDE_W - rect.w) / 2) + 'px'; break;
-        case 'right':   el.style.left = (SLIDE_W - rect.w) + 'px'; break;
-        case 'top':     el.style.top = '0px'; break;
-        case 'centerV': el.style.top = ((SLIDE_H - rect.h) / 2) + 'px'; break;
-        case 'bottom':  el.style.top = (SLIDE_H - rect.h) + 'px'; break;
+        case 'left':    targetX = 0; break;
+        case 'centerH': targetX = (SLIDE_W - rect.w) / 2; break;
+        case 'right':   targetX = SLIDE_W - rect.w; break;
+        case 'top':     targetY = 0; break;
+        case 'centerV': targetY = (SLIDE_H - rect.h) / 2; break;
+        case 'bottom':  targetY = SLIDE_H - rect.h; break;
       }
+      el.style.transform = `translate(${t.x + (targetX - rect.x)}px, ${t.y + (targetY - rect.y)}px)`;
     });
     saveHistory();
     updateSelectionBox();
@@ -1861,6 +1876,7 @@ ${slideContent}
       isResizing = true;
       resizeHandle = handle.dataset.dir;
       resizeStartRect = getElementRect(selectedElements[0]);
+      selectedElements[0]._resizeTranslateStart = getTranslateValues(selectedElements[0]);
       dragStart = toSlideCoords(e.clientX, e.clientY);
       return;
     }
@@ -1896,20 +1912,18 @@ ${slideContent}
       const dx = pos.x - dragStart.x;
       const dy = pos.y - dragStart.y;
 
-      // 初回のドラッグ移動時のみabsoluteに変換して開始位置を記録
+      // 初回のドラッグ移動時に開始位置を記録（absoluteに変換しない）
       if (!selectedElements[0]._dragReady) {
         saveHistory();
         selectedElements.forEach(el => {
-          ensureAbsoluteWithInlinePos(el);
-          el._startLeft = parseFloat(el.style.left) || 0;
-          el._startTop = parseFloat(el.style.top) || 0;
+          el._translateStart = getTranslateValues(el);
           el._dragReady = true;
         });
       }
 
       selectedElements.forEach(el => {
-        el.style.left = (el._startLeft + dx) + 'px';
-        el.style.top = (el._startTop + dy) + 'px';
+        const t = el._translateStart;
+        el.style.transform = `translate(${t.x + dx}px, ${t.y + dy}px)`;
       });
 
       showSnapGuides(selectedElements[0]);
@@ -1950,8 +1964,7 @@ ${slideContent}
       }
       // ドラッグ用の一時プロパティをクリーンアップ
       selectedElements.forEach(el => {
-        delete el._startLeft;
-        delete el._startTop;
+        delete el._translateStart;
         delete el._dragReady;
       });
       dragStart = null;
@@ -1960,6 +1973,7 @@ ${slideContent}
     if (isResizing) {
       isResizing = false;
       saveHistory();
+      delete selectedElements[0]?._resizeTranslateStart;
       dragStart = null;
       resizeHandle = null;
       resizeStartRect = null;
@@ -2086,15 +2100,15 @@ ${slideContent}
       e.preventDefault();
       saveHistory();
       selectedElements.forEach(el => {
-        ensureAbsoluteWithInlinePos(el);
-        const left = parseFloat(el.style.left) || 0;
-        const top = parseFloat(el.style.top) || 0;
+        const t = getTranslateValues(el);
+        let tx = t.x, ty = t.y;
         switch (e.key) {
-          case 'ArrowLeft':  el.style.left = (left - nudge) + 'px'; break;
-          case 'ArrowRight': el.style.left = (left + nudge) + 'px'; break;
-          case 'ArrowUp':    el.style.top = (top - nudge) + 'px'; break;
-          case 'ArrowDown':  el.style.top = (top + nudge) + 'px'; break;
+          case 'ArrowLeft':  tx -= nudge; break;
+          case 'ArrowRight': tx += nudge; break;
+          case 'ArrowUp':    ty -= nudge; break;
+          case 'ArrowDown':  ty += nudge; break;
         }
+        el.style.transform = `translate(${tx}px, ${ty}px)`;
       });
       saveHistory();
       updateSelectionBox();
@@ -2189,8 +2203,16 @@ ${slideContent}
     });
   }
 
-  bindPropInput('propX', (el, v) => { ensureAbsoluteWithInlinePos(el); el.style.left = v + 'px'; });
-  bindPropInput('propY', (el, v) => { ensureAbsoluteWithInlinePos(el); el.style.top = v + 'px'; });
+  bindPropInput('propX', (el, v) => {
+    const rect = getElementRect(el);
+    const t = getTranslateValues(el);
+    el.style.transform = `translate(${t.x + (parseFloat(v) - rect.x)}px, ${t.y}px)`;
+  });
+  bindPropInput('propY', (el, v) => {
+    const rect = getElementRect(el);
+    const t = getTranslateValues(el);
+    el.style.transform = `translate(${t.x}px, ${t.y + (parseFloat(v) - rect.y)}px)`;
+  });
   bindPropInput('propW', (el, v) => { el.style.width = v + 'px'; el.style.minWidth = 'unset'; el.style.maxWidth = 'unset'; });
   bindPropInput('propH', (el, v) => { el.style.height = v + 'px'; el.style.minHeight = 'unset'; el.style.maxHeight = 'unset'; });
   bindPropInput('propFontSize', (el, v) => { el.style.fontSize = v + 'px'; });
