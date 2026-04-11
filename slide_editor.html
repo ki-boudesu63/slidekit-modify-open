@@ -1,0 +1,2002 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SlideKit Visual Editor</title>
+<!-- スライドのスタイルを正しく描画するためのCDN -->
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Lato:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── デザイントークン ── */
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #242836;
+  --border: #333750;
+  --text: #e4e6f0;
+  --text2: #8b8fa8;
+  --accent: #6c8aff;
+  --accent-dim: #3d4f8c;
+  --danger: #ff6b6b;
+  --success: #51cf66;
+  --warning: #ffd43b;
+  --orange: #ff922b;
+  --handle-size: 8px;
+}
+
+/* ── リセット ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', 'Noto Sans JP', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* ── ヘッダーツールバー ── */
+.toolbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 200;
+  flex-wrap: wrap;
+}
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-right: 1px solid var(--border);
+}
+.toolbar-group:last-child { border-right: none; }
+
+.tb {
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text2);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: all .12s;
+}
+.tb:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+.tb.active { background: var(--accent-dim); color: #fff; border-color: var(--accent); }
+.tb:disabled { opacity: .3; cursor: default; }
+.tb i { font-size: 12px; }
+.tb-label { font-size: 11px; }
+
+.tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+/* ── メインレイアウト ── */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── キャンバスエリア ── */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg);
+}
+
+/* ── ウェルカム画面 ── */
+.welcome {
+  text-align: center;
+  color: var(--text2);
+}
+.welcome i { font-size: 48px; margin-bottom: 16px; display: block; color: var(--accent-dim); }
+.welcome h2 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+.welcome p { font-size: 13px; line-height: 1.8; }
+
+/* ── スライドキャンバス ── */
+.canvas-wrapper {
+  position: relative;
+  transform-origin: center center;
+}
+
+.slide-canvas {
+  width: 1280px;
+  height: 720px;
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+}
+
+/* スライド内のブランドカラー */
+.slide-canvas .bg-brand-dark { background-color: #1a365d; }
+.slide-canvas .text-brand-dark { color: #1a365d; }
+.slide-canvas .bg-brand-accent { background-color: #2b6cb0; }
+.slide-canvas .text-brand-accent { color: #2b6cb0; }
+.slide-canvas .border-brand-accent { border-color: #2b6cb0; }
+.slide-canvas .bg-brand-warm { background-color: #ebf8ff; }
+.slide-canvas .text-brand-warm { color: #ebf8ff; }
+.slide-canvas .font-accent { font-family: 'Lato', sans-serif; }
+
+/* ── グリッドオーバーレイ ── */
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  display: none;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(128,128,128,.3) 39px, rgba(128,128,128,.3) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(128,128,128,.3) 39px, rgba(128,128,128,.3) 40px);
+}
+.grid-overlay.visible { display: block; }
+
+/* ── スナップガイドライン ── */
+.snap-guide {
+  position: absolute;
+  background: var(--accent);
+  z-index: 60;
+  pointer-events: none;
+}
+.snap-guide.horizontal { height: 1px; left: 0; right: 0; }
+.snap-guide.vertical { width: 1px; top: 0; bottom: 0; }
+
+/* ── 選択ボックス ── */
+.selection-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 100;
+}
+
+/* リサイズハンドル */
+.resize-handle {
+  position: absolute;
+  width: var(--handle-size);
+  height: var(--handle-size);
+  background: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 1px;
+  pointer-events: all;
+  z-index: 101;
+}
+.resize-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+.resize-handle.n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.resize-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+.resize-handle.e  { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
+.resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+.resize-handle.s  { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.resize-handle.w  { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+
+/* ── 範囲選択矩形 ── */
+.marquee {
+  position: absolute;
+  border: 1px dashed var(--accent);
+  background: rgba(108, 138, 255, .08);
+  pointer-events: none;
+  z-index: 90;
+}
+
+/* ── プロパティパネル ── */
+.props-panel {
+  width: 260px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-y: auto;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.props-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.props-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 8px;
+}
+.prop-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.prop-label {
+  width: 28px;
+  font-size: 11px;
+  color: var(--text2);
+  flex-shrink: 0;
+}
+.prop-input {
+  flex: 1;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+}
+.prop-input:focus { border-color: var(--accent); }
+.prop-input[type="color"] {
+  padding: 1px 2px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.align-btns {
+  display: flex;
+  gap: 2px;
+}
+.align-btn {
+  flex: 1;
+  padding: 4px 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: center;
+}
+.align-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.no-selection {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text2);
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+/* ── ステータスバー ── */
+.statusbar {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 3px 12px;
+  font-size: 11px;
+  color: var(--text2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ── 右クリックメニュー ── */
+.ctx-menu {
+  position: fixed;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 0;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  z-index: 1000;
+  display: none;
+}
+.ctx-menu.show { display: block; }
+.ctx-item {
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text);
+}
+.ctx-item:hover { background: var(--accent-dim); }
+.ctx-item .shortcut { font-size: 10px; color: var(--text2); }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.ctx-item.danger { color: var(--danger); }
+
+/* ── ドロップゾーン ── */
+.drop-indicator {
+  position: absolute;
+  inset: 0;
+  border: 3px dashed var(--accent);
+  background: rgba(108, 138, 255, .1);
+  z-index: 500;
+  display: none;
+  pointer-events: none;
+  border-radius: 8px;
+}
+.drop-indicator.visible { display: flex; align-items: center; justify-content: center; }
+.drop-indicator span { font-size: 16px; color: var(--accent); font-weight: 600; }
+
+/* スクロールバー */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ ツールバー ═══ -->
+<div class="toolbar">
+  <div class="toolbar-group">
+    <button class="tb" id="btnOpenFolder" title="スライドフォルダを開く（画像を含む）"><i class="fas fa-folder-open"></i><span class="tb-label">フォルダ</span></button>
+    <button class="tb" id="btnOpen" title="HTMLファイル単体を開く"><i class="fas fa-file-code"></i><span class="tb-label">ファイル</span></button>
+    <button class="tb" id="btnSave" title="上書き保存 (Ctrl+S)" disabled><i class="fas fa-save"></i><span class="tb-label">保存</span></button>
+    <button class="tb" id="btnSaveAs" title="名前を付けて保存 (Ctrl+Shift+S)" disabled><i class="fas fa-file-export"></i><span class="tb-label">別名保存</span></button>
+  </div>
+  <div class="toolbar-group">
+    <button class="tb" id="btnUndo" title="元に戻す (Ctrl+Z)" disabled><i class="fas fa-undo"></i></button>
+    <button class="tb" id="btnRedo" title="やり直し (Ctrl+Y)" disabled><i class="fas fa-redo"></i></button>
+  </div>
+  <div class="toolbar-group">
+    <button class="tb" id="btnAddText" title="テキスト追加" disabled><i class="fas fa-font"></i><span class="tb-label">テキスト</span></button>
+    <button class="tb" id="btnAddImage" title="画像挿入" disabled><i class="fas fa-image"></i><span class="tb-label">画像</span></button>
+    <button class="tb" id="btnAddRect" title="矩形追加" disabled><i class="fas fa-square"></i><span class="tb-label">矩形</span></button>
+    <button class="tb" id="btnAddCircle" title="円追加" disabled><i class="fas fa-circle"></i><span class="tb-label">円</span></button>
+    <button class="tb" id="btnAddLine" title="線追加" disabled><i class="fas fa-minus"></i><span class="tb-label">線</span></button>
+  </div>
+  <div class="toolbar-group">
+    <button class="tb" id="btnBringFront" title="最前面へ (Ctrl+Shift+])" disabled><i class="fas fa-layer-group"></i><span class="tb-label">最前面</span></button>
+    <button class="tb" id="btnBringForward" title="一つ前面へ (Ctrl+])" disabled><i class="fas fa-arrow-up"></i></button>
+    <button class="tb" id="btnSendBackward" title="一つ背面へ (Ctrl+[)" disabled><i class="fas fa-arrow-down"></i></button>
+    <button class="tb" id="btnSendBack" title="最背面へ (Ctrl+Shift+[)" disabled><i class="fas fa-layer-group fa-flip-vertical"></i><span class="tb-label">最背面</span></button>
+  </div>
+  <div class="toolbar-group">
+    <button class="tb" id="btnDelete" title="削除 (Delete)" disabled><i class="fas fa-trash-alt"></i></button>
+  </div>
+  <div class="toolbar-group">
+    <button class="tb" id="btnGrid" title="グリッド表示切替"><i class="fas fa-th"></i></button>
+  </div>
+</div>
+
+<!-- ═══ メイン ═══ -->
+<div class="main">
+  <!-- キャンバスエリア -->
+  <div class="canvas-area" id="canvasArea">
+    <!-- ウェルカム画面 -->
+    <div class="welcome" id="welcome">
+      <i class="fas fa-edit"></i>
+      <h2>SlideKit Visual Editor</h2>
+      <p>「フォルダ」ボタンでスライドフォルダを開く（画像付き推奨）<br>
+      または「ファイル」ボタンでHTMLを単体で開く<br>
+      ここにHTMLファイルをドロップすることもできます</p>
+    </div>
+    <!-- キャンバス（スライド読み込み後に表示） -->
+    <div class="canvas-wrapper" id="canvasWrapper" style="display:none">
+      <div class="slide-canvas" id="slideCanvas"></div>
+      <div class="grid-overlay" id="gridOverlay"></div>
+      <!-- 選択ボックス・ハンドルはJSで動的生成 -->
+      <div class="drop-indicator" id="dropIndicator"><span>画像をここにドロップ</span></div>
+    </div>
+  </div>
+
+  <!-- プロパティパネル -->
+  <div class="props-panel" id="propsPanel">
+    <div class="no-selection" id="noSelection">
+      <p>要素を選択すると<br>プロパティが表示されます</p>
+      <br>
+      <p style="font-size:11px;color:var(--text2)">
+        <b>操作方法:</b><br>
+        クリック → 要素を選択<br>
+        Alt+クリック → 親コンテナ選択<br>
+        ダブルクリック → テキスト編集<br>
+        ドラッグ → 移動<br>
+        ハンドル → リサイズ<br>
+        Delete → 削除<br>
+        Ctrl+Z → 元に戻す
+      </p>
+    </div>
+    <!-- 選択時のプロパティ表示 -->
+    <div id="propsContent" style="display:none">
+      <div class="props-section">
+        <h3>位置・サイズ</h3>
+        <div class="prop-row">
+          <span class="prop-label">X</span>
+          <input type="number" class="prop-input" id="propX" step="1">
+          <span class="prop-label" style="margin-left:4px">Y</span>
+          <input type="number" class="prop-input" id="propY" step="1">
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">W</span>
+          <input type="number" class="prop-input" id="propW" step="1">
+          <span class="prop-label" style="margin-left:4px">H</span>
+          <input type="number" class="prop-input" id="propH" step="1">
+        </div>
+      </div>
+      <div class="props-section">
+        <h3>整列</h3>
+        <div class="align-btns">
+          <button class="align-btn" data-align="left" title="左揃え"><i class="fas fa-align-left"></i></button>
+          <button class="align-btn" data-align="centerH" title="水平中央"><i class="fas fa-align-center"></i></button>
+          <button class="align-btn" data-align="right" title="右揃え"><i class="fas fa-align-right"></i></button>
+          <button class="align-btn" data-align="top" title="上揃え"><i class="fas fa-arrow-up"></i></button>
+          <button class="align-btn" data-align="centerV" title="垂直中央"><i class="fas fa-arrows-alt-v"></i></button>
+          <button class="align-btn" data-align="bottom" title="下揃え"><i class="fas fa-arrow-down"></i></button>
+        </div>
+      </div>
+      <div class="props-section">
+        <h3>テキスト</h3>
+        <div class="prop-row">
+          <span class="prop-label">サイズ</span>
+          <input type="number" class="prop-input" id="propFontSize" step="1" min="1">
+          <span class="prop-label">px</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">色</span>
+          <input type="color" class="prop-input" id="propColor" style="width:40px;flex:none">
+          <span class="prop-label">太さ</span>
+          <select class="prop-input" id="propFontWeight">
+            <option value="300">Light</option>
+            <option value="400">Normal</option>
+            <option value="500">Medium</option>
+            <option value="600">SemiBold</option>
+            <option value="700">Bold</option>
+            <option value="900">Black</option>
+          </select>
+        </div>
+        <div class="prop-row" style="gap:2px">
+          <button class="align-btn" id="propBold" title="太字" style="flex:none;width:28px"><b>B</b></button>
+          <button class="align-btn" id="propItalic" title="斜体" style="flex:none;width:28px"><i>I</i></button>
+          <button class="align-btn" id="propUnderline" title="下線" style="flex:none;width:28px"><u>U</u></button>
+        </div>
+      </div>
+      <div class="props-section">
+        <h3>外観</h3>
+        <div class="prop-row">
+          <span class="prop-label">背景</span>
+          <input type="color" class="prop-input" id="propBgColor" style="width:40px;flex:none">
+          <button class="align-btn" id="propBgNone" title="背景なし" style="flex:none;width:40px;font-size:10px">なし</button>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">透明</span>
+          <input type="range" class="prop-input" id="propOpacity" min="0" max="1" step="0.05" style="padding:0">
+          <span id="propOpacityVal" style="width:30px;text-align:right;font-size:11px;color:var(--text2)">1</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">角丸</span>
+          <input type="number" class="prop-input" id="propBorderRadius" min="0" step="1">
+          <span class="prop-label">px</span>
+        </div>
+        <div class="prop-row">
+          <span class="prop-label">枠線</span>
+          <input type="number" class="prop-input" id="propBorderWidth" min="0" step="1" style="width:40px;flex:none">
+          <input type="color" class="prop-input" id="propBorderColor" style="width:40px;flex:none">
+        </div>
+      </div>
+      <div class="props-section">
+        <h3>要素情報</h3>
+        <div style="font-size:11px;color:var(--text2);word-break:break-all" id="propElementInfo"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ステータスバー ═══ -->
+<div class="statusbar">
+  <span id="statusLeft">ファイルを開いてください</span>
+  <span id="statusRight">Zoom: 100%</span>
+</div>
+
+<!-- ═══ 右クリックメニュー ═══ -->
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-item" data-action="copy">コピー <span class="shortcut">Ctrl+C</span></div>
+  <div class="ctx-item" data-action="paste">ペースト <span class="shortcut">Ctrl+V</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-action="bringFront">最前面へ <span class="shortcut">Ctrl+Shift+]</span></div>
+  <div class="ctx-item" data-action="bringForward">一つ前面へ <span class="shortcut">Ctrl+]</span></div>
+  <div class="ctx-item" data-action="sendBackward">一つ背面へ <span class="shortcut">Ctrl+[</span></div>
+  <div class="ctx-item" data-action="sendBack">最背面へ <span class="shortcut">Ctrl+Shift+[</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" data-action="delete">削除 <span class="shortcut">Delete</span></div>
+</div>
+
+<!-- ═══ 非表示のファイル入力 ═══ -->
+<input type="file" id="fileInput" accept=".html,.htm" style="display:none">
+<!-- フォルダ選択（画像を含むスライドフォルダを丸ごと読み込む） -->
+<input type="file" id="folderInput" webkitdirectory style="display:none">
+<input type="file" id="imageInput" accept="image/*" style="display:none">
+
+<script>
+// ============================================================
+// SlideKit Visual Editor - メインスクリプト
+// ============================================================
+
+(() => {
+  'use strict';
+
+  // ── DOM参照 ──
+  const $ = id => document.getElementById(id);
+  const canvasArea = $('canvasArea');
+  const canvasWrapper = $('canvasWrapper');
+  const slideCanvas = $('slideCanvas');
+  const gridOverlay = $('gridOverlay');
+  const welcome = $('welcome');
+  const propsPanel = $('propsPanel');
+  const noSelection = $('noSelection');
+  const propsContent = $('propsContent');
+  const ctxMenu = $('ctxMenu');
+  const dropIndicator = $('dropIndicator');
+  const fileInput = $('fileInput');
+  const folderInput = $('folderInput');
+  const imageInput = $('imageInput');
+
+  // ── 定数 ──
+  const SLIDE_W = 1280;
+  const SLIDE_H = 720;
+  const SNAP_THRESHOLD = 5;
+  const MAX_HISTORY = 50;
+
+  // ── 状態管理 ──
+  let scale = 1;
+  let selectedElements = [];
+  let clipboard = [];
+  let history = [];
+  let historyIndex = -1;
+  let isEditing = false;     // テキスト編集中
+  let isDragging = false;
+  let isResizing = false;
+  let isMarquee = false;
+  let dragStart = null;
+  let resizeHandle = null;
+  let resizeStartRect = null;
+  let marqueeStart = null;
+  let originalHead = '';     // 読み込んだHTMLの<head>部分（保存時に使用）
+  let originalFileName = '';
+  let snapGuides = [];
+  let folderImageMap = {};   // 相対パス → blob URL のマッピング（フォルダ読み込み時）
+  let originalImageSrcs = {}; // blob URL → 元の相対パス（保存時復元用）
+  let currentFileHandle = null;  // File System Access API のファイルハンドル（上書き保存用）
+  let currentDirHandle = null;   // ディレクトリハンドル（フォルダ選択時）
+
+  // ── 選択ボックス要素 ──
+  let selectionBox = null;
+  let handles = {};
+  let marqueeEl = null;
+
+  // 選択ボックスの作成
+  function createSelectionUI() {
+    // 既存のものを削除
+    if (selectionBox) selectionBox.remove();
+    if (marqueeEl) marqueeEl.remove();
+
+    selectionBox = document.createElement('div');
+    selectionBox.className = 'selection-box';
+    selectionBox.style.display = 'none';
+    canvasWrapper.appendChild(selectionBox);
+
+    const dirs = ['nw','n','ne','e','se','s','sw','w'];
+    dirs.forEach(d => {
+      const h = document.createElement('div');
+      h.className = `resize-handle ${d}`;
+      h.dataset.dir = d;
+      selectionBox.appendChild(h);
+      handles[d] = h;
+    });
+
+    marqueeEl = document.createElement('div');
+    marqueeEl.className = 'marquee';
+    marqueeEl.style.display = 'none';
+    canvasWrapper.appendChild(marqueeEl);
+  }
+
+  // ── ズーム計算 ──
+  function updateScale() {
+    const area = canvasArea.getBoundingClientRect();
+    const pad = 60;
+    const sx = (area.width - pad) / SLIDE_W;
+    const sy = (area.height - pad) / SLIDE_H;
+    scale = Math.min(sx, sy, 1.5);
+    canvasWrapper.style.transform = `scale(${scale})`;
+    $('statusRight').textContent = `Zoom: ${Math.round(scale * 100)}%`;
+  }
+
+  // ── マウス座標をスライド座標に変換 ──
+  function toSlideCoords(clientX, clientY) {
+    const rect = slideCanvas.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) / scale,
+      y: (clientY - rect.top) / scale
+    };
+  }
+
+  // ── 要素の矩形取得（スライド座標系） ──
+  function getElementRect(el) {
+    const slideRect = slideCanvas.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    return {
+      x: (elRect.left - slideRect.left) / scale,
+      y: (elRect.top - slideRect.top) / scale,
+      w: elRect.width / scale,
+      h: elRect.height / scale
+    };
+  }
+
+  // ── 選択可能な要素か判定 ──
+  function isSelectableElement(el) {
+    if (!el || el === slideCanvas) return false;
+    if (el.classList.contains('snap-guide')) return false;
+    if (el.dataset.editorIgnore) return false;
+    // slideCanvasの直接の子要素、またはその子孫
+    return slideCanvas.contains(el) && el !== slideCanvas;
+  }
+
+  // ── 個別選択可能な要素か判定 ──
+  // img, テキスト要素, アイコンなどはそのまま直接選択する
+  const LEAF_TAGS = new Set(['IMG', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'SPAN', 'LI', 'A', 'FIGCAPTION', 'BLOCKQUOTE', 'I', 'SVG', 'TABLE']);
+
+  function isLeafElement(el) {
+    // img, svg は常にリーフ
+    if (el.tagName === 'IMG' || el.tagName === 'SVG') return true;
+    // テキスト系タグ
+    if (LEAF_TAGS.has(el.tagName)) return true;
+    // 子要素を持たず直接テキストを含むdiv（テキストボックス的なもの）
+    if (el.tagName === 'DIV' && el.children.length === 0 && el.textContent.trim()) return true;
+    // 装飾要素: 子要素がなく背景やborder-radiusを持つdiv
+    if (el.tagName === 'DIV' && el.children.length === 0) {
+      const cs = getComputedStyle(el);
+      if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.borderRadius !== '0px') return true;
+    }
+    return false;
+  }
+
+  // ── クリック対象の最も適切な要素を見つける ──
+  // クリックした要素が個別選択可能（img, p, h1等）ならそのまま返す
+  // そうでなければ、最も近い個別選択可能な祖先 or slideCanvas直下の子を返す
+  // Alt+クリックで一つ上の親を選択（コンテナ選択）
+  function findTargetElement(el, selectParent = false) {
+    if (!el || el === slideCanvas) return null;
+    if (!slideCanvas.contains(el)) return null;
+
+    // まず、クリックした要素自体がリーフ要素か確認
+    let current = el;
+    while (current && current !== slideCanvas) {
+      if (isLeafElement(current)) {
+        // Alt+クリック: リーフではなくその親コンテナを選択
+        if (selectParent) {
+          return findParentContainer(current);
+        }
+        return current;
+      }
+      current = current.parentElement;
+    }
+
+    // リーフ要素が見つからなければ、slideCanvas直下の子まで遡る
+    current = el;
+    while (current && current.parentElement !== slideCanvas) {
+      current = current.parentElement;
+      if (!current || !slideCanvas.contains(current)) return null;
+    }
+    return current;
+  }
+
+  // 選択中の要素の親コンテナを見つける
+  function findParentContainer(el) {
+    let parent = el.parentElement;
+    while (parent && parent !== slideCanvas) {
+      if (parent.parentElement === slideCanvas) return parent;
+      parent = parent.parentElement;
+    }
+    return parent === slideCanvas ? el : parent;
+  }
+
+  // ── 重なった要素の中から最前面のものを選択する ──
+  // document.elementsFromPoint でクリック位置の全要素を取得し、
+  // DOM順序（後ろの兄弟 = 前面）を考慮して最前面の選択可能な要素を返す
+  function findTopmostTarget(clientX, clientY, selectParent) {
+    const allAtPoint = document.elementsFromPoint(clientX, clientY);
+    // slideCanvas内の要素だけをフィルタ
+    const candidates = [];
+    for (const el of allAtPoint) {
+      if (el === slideCanvas || !slideCanvas.contains(el)) continue;
+      if (el.classList.contains('snap-guide') || el.dataset.editorIgnore) continue;
+      const resolved = findTargetElement(el, selectParent);
+      if (resolved && isSelectableElement(resolved) && !candidates.includes(resolved)) {
+        candidates.push(resolved);
+      }
+    }
+    if (candidates.length === 0) return null;
+
+    // DOM順序で最前面の要素を選ぶ
+    // DOM内で後ろにある要素ほど前面に描画される（z-indexが同じ場合）
+    // compareDocumentPosition を使って最も後ろにある要素を返す
+    let topmost = candidates[0];
+    for (let i = 1; i < candidates.length; i++) {
+      const cand = candidates[i];
+      // 同じ要素は飛ばす
+      if (cand === topmost) continue;
+      // 一方が他方の子孫なら、子孫（より具体的な方）を優先
+      if (topmost.contains(cand)) { topmost = cand; continue; }
+      if (cand.contains(topmost)) continue;
+      // 兄弟関係: DOM上で後に来る方が前面
+      const pos = topmost.compareDocumentPosition(cand);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) {
+        topmost = cand;
+      }
+    }
+    return topmost;
+  }
+
+  // ── 要素を選択 ──
+  function selectElement(el, addToSelection = false) {
+    if (isEditing) finishEditing();
+
+    if (!addToSelection) {
+      // 単一選択
+      selectedElements.forEach(e => e.style.outline = '');
+      if (el) {
+        selectedElements = [el];
+      } else {
+        selectedElements = [];
+      }
+    } else {
+      // 複数選択 (Shift+クリック)
+      const idx = selectedElements.indexOf(el);
+      if (idx >= 0) {
+        el.style.outline = '';
+        selectedElements.splice(idx, 1);
+      } else if (el) {
+        selectedElements.push(el);
+      }
+    }
+
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+  }
+
+  // ── 全選択 ──
+  function selectAll() {
+    if (isEditing) return;
+    selectedElements = Array.from(slideCanvas.children).filter(isSelectableElement);
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+  }
+
+  // ── 選択ボックス更新 ──
+  function updateSelectionBox() {
+    if (!selectionBox) return;
+    if (selectedElements.length === 0) {
+      selectionBox.style.display = 'none';
+      return;
+    }
+
+    // 選択要素全体のバウンディングボックスを計算
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedElements.forEach(el => {
+      const r = getElementRect(el);
+      minX = Math.min(minX, r.x);
+      minY = Math.min(minY, r.y);
+      maxX = Math.max(maxX, r.x + r.w);
+      maxY = Math.max(maxY, r.y + r.h);
+    });
+
+    selectionBox.style.display = 'block';
+    selectionBox.style.left = minX + 'px';
+    selectionBox.style.top = minY + 'px';
+    selectionBox.style.width = (maxX - minX) + 'px';
+    selectionBox.style.height = (maxY - minY) + 'px';
+  }
+
+  // ── プロパティパネル更新 ──
+  function updatePropsPanel() {
+    if (selectedElements.length === 0) {
+      noSelection.style.display = '';
+      propsContent.style.display = 'none';
+      return;
+    }
+
+    noSelection.style.display = 'none';
+    propsContent.style.display = '';
+
+    const el = selectedElements[0];
+    const rect = getElementRect(el);
+    const cs = getComputedStyle(el);
+
+    $('propX').value = Math.round(rect.x);
+    $('propY').value = Math.round(rect.y);
+    $('propW').value = Math.round(rect.w);
+    $('propH').value = Math.round(rect.h);
+
+    $('propFontSize').value = parseInt(cs.fontSize) || '';
+    $('propColor').value = rgbToHex(cs.color);
+    $('propFontWeight').value = cs.fontWeight;
+    $('propBgColor').value = rgbToHex(cs.backgroundColor) || '#ffffff';
+    $('propOpacity').value = parseFloat(cs.opacity) || 1;
+    $('propOpacityVal').textContent = parseFloat(cs.opacity).toFixed(2);
+    $('propBorderRadius').value = parseInt(cs.borderRadius) || 0;
+    $('propBorderWidth').value = parseInt(cs.borderWidth) || 0;
+    $('propBorderColor').value = rgbToHex(cs.borderColor) || '#000000';
+
+    // 要素情報
+    const tag = el.tagName.toLowerCase();
+    const classes = el.className ? el.className.substring(0, 80) : '';
+    $('propElementInfo').textContent = `<${tag}> ${classes}`;
+  }
+
+  // ── RGB→HEX変換 ──
+  function rgbToHex(rgb) {
+    if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return '#ffffff';
+    const match = rgb.match(/\d+/g);
+    if (!match || match.length < 3) return '#ffffff';
+    const [r, g, b] = match;
+    return '#' + [r, g, b].map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+  }
+
+  // ── ツールバーボタンの有効/無効制御 ──
+  function updateToolbarState() {
+    const hasFile = slideCanvas.children.length > 0;
+    const hasSel = selectedElements.length > 0;
+
+    $('btnSave').disabled = !hasFile;
+    $('btnSaveAs').disabled = !hasFile;
+    $('btnAddText').disabled = !hasFile;
+    $('btnAddImage').disabled = !hasFile;
+    $('btnAddRect').disabled = !hasFile;
+    $('btnAddCircle').disabled = !hasFile;
+    $('btnAddLine').disabled = !hasFile;
+    $('btnDelete').disabled = !hasSel;
+    $('btnBringFront').disabled = !hasSel;
+    $('btnBringForward').disabled = !hasSel;
+    $('btnSendBackward').disabled = !hasSel;
+    $('btnSendBack').disabled = !hasSel;
+    $('btnUndo').disabled = historyIndex <= 0;
+    $('btnRedo').disabled = historyIndex >= history.length - 1;
+  }
+
+  // ============================================================
+  // 履歴管理（Undo / Redo）
+  // ============================================================
+  function saveHistory() {
+    // 現在位置より先の履歴を切り捨て
+    history = history.slice(0, historyIndex + 1);
+    history.push(slideCanvas.innerHTML);
+    if (history.length > MAX_HISTORY) history.shift();
+    historyIndex = history.length - 1;
+    updateToolbarState();
+  }
+
+  function undo() {
+    if (historyIndex <= 0) return;
+    historyIndex--;
+    slideCanvas.innerHTML = history[historyIndex];
+    selectedElements = [];
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+  }
+
+  function redo() {
+    if (historyIndex >= history.length - 1) return;
+    historyIndex++;
+    slideCanvas.innerHTML = history[historyIndex];
+    selectedElements = [];
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+  }
+
+  // ============================================================
+  // ファイル読み込み（File System Access API を使用）
+  // ============================================================
+
+  // 単一HTMLファイルを開く（showOpenFilePicker使用 → ハンドルを保持して上書き保存可能に）
+  async function openSingleFile() {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: 'HTML Files', accept: { 'text/html': ['.html', '.htm'] } }],
+        multiple: false
+      });
+      currentFileHandle = handle;
+      currentDirHandle = null;
+      folderImageMap = {};
+      originalImageSrcs = {};
+      const file = await handle.getFile();
+      const html = await file.text();
+      parseAndLoadSlide(html, file.name);
+    } catch (e) {
+      // ユーザーがキャンセルした場合は何もしない
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  }
+
+  // フォルダを開く（showDirectoryPicker使用 → ディレクトリ内のファイルハンドルを保持）
+  async function openFolder() {
+    try {
+      const dirHandle = await window.showDirectoryPicker();
+      currentDirHandle = dirHandle;
+      currentFileHandle = null;
+      folderImageMap = {};
+      originalImageSrcs = {};
+
+      // フォルダ内を再帰的に走査して画像とHTMLを収集
+      const htmlEntries = [];  // { handle, name }
+      await scanDirectory(dirHandle, '', htmlEntries);
+
+      if (htmlEntries.length === 0) {
+        alert('フォルダ内にHTMLスライドファイルが見つかりません。');
+        return;
+      }
+
+      // スライド選択
+      if (htmlEntries.length === 1) {
+        await loadFromHandle(htmlEntries[0].handle, htmlEntries[0].name);
+      } else {
+        showSlideSelector(htmlEntries);
+      }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error(e);
+    }
+  }
+
+  // ディレクトリを再帰走査して画像マップとHTMLリストを構築
+  async function scanDirectory(dirHandle, pathPrefix, htmlEntries) {
+    for await (const entry of dirHandle.values()) {
+      const relativePath = pathPrefix ? pathPrefix + '/' + entry.name : entry.name;
+
+      if (entry.kind === 'directory') {
+        // サブディレクトリを再帰走査（imagesフォルダなど）
+        const subDir = await dirHandle.getDirectoryHandle(entry.name);
+        await scanDirectory(subDir, relativePath, htmlEntries);
+      } else if (entry.kind === 'file') {
+        const file = await entry.getFile();
+
+        if (file.type.startsWith('image/')) {
+          // 画像ファイルをblob URLにマッピング
+          const blobUrl = URL.createObjectURL(file);
+          folderImageMap[relativePath] = blobUrl;
+          originalImageSrcs[blobUrl] = relativePath;
+        } else if (file.name.endsWith('.html') && file.name !== 'index.html' && file.name !== 'presenter.html') {
+          // スライドHTMLファイル
+          htmlEntries.push({ handle: entry, name: file.name });
+        }
+      }
+    }
+  }
+
+  // FileSystemFileHandleからHTMLを読み込んでパース
+  async function loadFromHandle(fileHandle, fileName) {
+    currentFileHandle = fileHandle;
+    const file = await fileHandle.getFile();
+    const html = await file.text();
+    parseAndLoadSlide(html, fileName);
+  }
+
+  // レガシーフォールバック: input[type=file]経由の読み込み
+  function loadHTMLFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      parseAndLoadSlide(e.target.result, file.name);
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function loadFolder(files) {
+    const fileArray = Array.from(files);
+    folderImageMap = {};
+    originalImageSrcs = {};
+
+    fileArray.forEach(f => {
+      if (f.type.startsWith('image/')) {
+        const relPath = f.webkitRelativePath;
+        const blobUrl = URL.createObjectURL(f);
+        const parts = relPath.split('/');
+        const relativePath = parts.slice(1).join('/');
+        folderImageMap[relativePath] = blobUrl;
+        originalImageSrcs[blobUrl] = relativePath;
+      }
+    });
+
+    const htmlFiles = fileArray.filter(f =>
+      f.name.endsWith('.html') &&
+      f.name !== 'index.html' &&
+      f.name !== 'presenter.html'
+    ).sort((a, b) => a.name.localeCompare(b.name));
+
+    if (htmlFiles.length === 0) {
+      alert('フォルダ内にHTMLスライドファイルが見つかりません。');
+      return;
+    }
+
+    if (htmlFiles.length === 1) {
+      loadHTMLFile(htmlFiles[0]);
+    } else {
+      showSlideSelectorLegacy(htmlFiles);
+    }
+  }
+
+  // スライド選択ダイアログ（File System Access API版）
+  function showSlideSelector(htmlEntries) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:400px;width:90%;max-height:70vh;overflow-y:auto;';
+    dialog.innerHTML = '<h3 style="margin-bottom:12px;font-size:14px;">編集するスライドを選択</h3>';
+
+    htmlEntries.sort((a, b) => a.name.localeCompare(b.name)).forEach(entry => {
+      const btn = document.createElement('button');
+      btn.textContent = entry.name;
+      btn.style.cssText = 'display:block;width:100%;padding:8px 12px;margin-bottom:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:13px;text-align:left;';
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--accent)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
+      btn.addEventListener('click', () => {
+        overlay.remove();
+        loadFromHandle(entry.handle, entry.name);
+      });
+      dialog.appendChild(btn);
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.style.cssText = 'margin-top:8px;padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;font-size:12px;';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    dialog.appendChild(cancelBtn);
+
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  // スライド選択ダイアログ（レガシー版: input[type=file]用）
+  function showSlideSelectorLegacy(htmlFiles) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    const dialog = document.createElement('div');
+    dialog.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:400px;width:90%;max-height:70vh;overflow-y:auto;';
+    dialog.innerHTML = '<h3 style="margin-bottom:12px;font-size:14px;">編集するスライドを選択</h3>';
+
+    htmlFiles.forEach(f => {
+      const btn = document.createElement('button');
+      btn.textContent = f.name;
+      btn.style.cssText = 'display:block;width:100%;padding:8px 12px;margin-bottom:4px;border:1px solid var(--border);border-radius:4px;background:var(--surface2);color:var(--text);cursor:pointer;font-size:13px;text-align:left;';
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--accent)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
+      btn.addEventListener('click', () => {
+        overlay.remove();
+        loadHTMLFile(f);
+      });
+      dialog.appendChild(btn);
+    });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'キャンセル';
+    cancelBtn.style.cssText = 'margin-top:8px;padding:6px 16px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;font-size:12px;';
+    cancelBtn.addEventListener('click', () => overlay.remove());
+    dialog.appendChild(cancelBtn);
+
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+  }
+
+  function parseAndLoadSlide(html, fileName) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // <head>の中身を保存（保存時に使う）
+    originalHead = doc.head.innerHTML;
+    originalFileName = fileName;
+
+    // .slide 要素を探す
+    const slideEl = doc.querySelector('.slide');
+    if (!slideEl) {
+      alert('HTMLファイル内に .slide クラスの要素が見つかりません。\nSlideKitで生成されたHTMLを選択してください。');
+      return;
+    }
+
+    // スライドの中身をキャンバスに注入
+    slideCanvas.innerHTML = slideEl.innerHTML;
+    // slideCanvas自体にclassを適用
+    slideCanvas.className = 'slide-canvas ' + slideEl.className.replace('slide', '').trim();
+
+    // 画像の相対パスをblob URLに置換（フォルダ読み込み時）
+    if (Object.keys(folderImageMap).length > 0) {
+      slideCanvas.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('src');
+        if (src && !src.startsWith('data:') && !src.startsWith('blob:') && !src.startsWith('http')) {
+          // 相対パスを正規化
+          const normalized = src.replace(/\\/g, '/');
+          if (folderImageMap[normalized]) {
+            img.setAttribute('data-original-src', src); // 保存時復元用
+            img.src = folderImageMap[normalized];
+          }
+        }
+      });
+      // CSS background-image 内の相対パスも置換
+      slideCanvas.querySelectorAll('*').forEach(el => {
+        const bg = el.style.backgroundImage;
+        if (bg && bg.includes('url(')) {
+          const match = bg.match(/url\(['"]?([^'")\s]+)['"]?\)/);
+          if (match && match[1] && !match[1].startsWith('data:') && !match[1].startsWith('blob:') && !match[1].startsWith('http')) {
+            const normalized = match[1].replace(/\\/g, '/');
+            if (folderImageMap[normalized]) {
+              el.dataset.originalBg = match[1];
+              el.style.backgroundImage = `url('${folderImageMap[normalized]}')`;
+            }
+          }
+        }
+      });
+    }
+
+    // <style>からブランドカラー等のカスタムCSSを抽出して適用
+    const styleTags = doc.querySelectorAll('style');
+    let existingSlideStyle = document.getElementById('slideCustomStyle');
+    if (existingSlideStyle) existingSlideStyle.remove();
+    styleTags.forEach(st => {
+      const styleEl = document.createElement('style');
+      styleEl.id = 'slideCustomStyle';
+      let css = st.textContent;
+      css = css.replace(/\.slide\b/g, '.slide-canvas');
+      styleEl.textContent = css;
+      document.head.appendChild(styleEl);
+    });
+
+    // UIを切り替え
+    welcome.style.display = 'none';
+    canvasWrapper.style.display = '';
+    createSelectionUI();
+    updateScale();
+
+    // 初期履歴
+    history = [slideCanvas.innerHTML];
+    historyIndex = 0;
+    selectedElements = [];
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+    $('statusLeft').textContent = fileName;
+  }
+
+  // ============================================================
+  // HTMLファイル保存
+  // ============================================================
+  // 保存用HTMLを組み立てる（共通処理）
+  function buildSaveHTML() {
+    // スライドのクローンを作成し、blob URLを元の相対パスに復元
+    const clone = slideCanvas.cloneNode(true);
+
+    // img要素: data-original-srcがあれば復元、なければblob URLを元のパスに戻す
+    clone.querySelectorAll('img').forEach(img => {
+      const origSrc = img.getAttribute('data-original-src');
+      if (origSrc) {
+        img.src = origSrc;
+        img.removeAttribute('data-original-src');
+      } else if (img.src.startsWith('blob:') && originalImageSrcs[img.src]) {
+        img.src = originalImageSrcs[img.src];
+      }
+    });
+
+    // background-image: data-original-bgがあれば復元
+    clone.querySelectorAll('[data-original-bg]').forEach(el => {
+      el.style.backgroundImage = `url('${el.dataset.originalBg}')`;
+      el.removeAttribute('data-original-bg');
+    });
+
+    // エディタ操作で付与された一時属性をクリーンアップ
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    clone.querySelectorAll('[data-editor-ignore]').forEach(el => el.removeAttribute('data-editor-ignore'));
+
+    const slideContent = clone.innerHTML;
+
+    // slideCanvasのクラスからエディタ用クラスを除去
+    let slideClasses = slideCanvas.className.replace('slide-canvas', '').trim();
+    if (!slideClasses.includes('slide')) slideClasses = 'slide ' + slideClasses;
+
+    return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+${originalHead}
+</head>
+<body>
+    <div class="${slideClasses}">
+${slideContent}
+    </div>
+</body>
+</html>`;
+  }
+
+  // 上書き保存（File System Access API）
+  async function saveHTML() {
+    selectElement(null);
+    const html = buildSaveHTML();
+
+    // ファイルハンドルがあれば直接上書き
+    if (currentFileHandle) {
+      try {
+        const writable = await currentFileHandle.createWritable();
+        await writable.write(html);
+        await writable.close();
+        $('statusLeft').textContent = originalFileName + ' — 保存しました';
+        return;
+      } catch (e) {
+        console.error('上書き保存に失敗:', e);
+        // 失敗した場合はダウンロードにフォールバック
+      }
+    }
+
+    // ハンドルがない場合はダウンロード
+    downloadHTML(html);
+  }
+
+  // 名前を付けて保存
+  async function saveHTMLAs() {
+    selectElement(null);
+    const html = buildSaveHTML();
+
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: originalFileName || 'slide.html',
+        types: [{ description: 'HTML Files', accept: { 'text/html': ['.html'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(html);
+      await writable.close();
+      currentFileHandle = handle;
+      originalFileName = handle.name;
+      $('statusLeft').textContent = originalFileName + ' — 保存しました';
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        console.error(e);
+        downloadHTML(html);
+      }
+    }
+  }
+
+  // フォールバック: ダウンロード保存
+  function downloadHTML(html) {
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = originalFileName || 'slide.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================
+  // 要素操作: 移動
+  // ============================================================
+
+  // 要素をabsolute+インラインleft/topに変換し、視覚的な位置を維持する
+  function ensureAbsoluteWithInlinePos(el) {
+    // 現在の視覚的な位置を取得（Tailwindクラスでの位置も含む）
+    const rect = getElementRect(el);
+    const cs = getComputedStyle(el);
+
+    // absoluteでない場合はabsoluteに変換
+    if (cs.position !== 'absolute' && cs.position !== 'fixed') {
+      el.style.position = 'absolute';
+      el.style.margin = '0';
+    }
+
+    // Tailwindのtop/right/bottom/left クラスによる位置をインラインで上書き
+    // これにより top-10 right-10 などのクラスの影響を排除する
+    el.style.left = rect.x + 'px';
+    el.style.top = rect.y + 'px';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  }
+
+  function moveElement(el, dx, dy) {
+    ensureAbsoluteWithInlinePos(el);
+    const left = parseFloat(el.style.left) || 0;
+    const top = parseFloat(el.style.top) || 0;
+    el.style.left = (left + dx) + 'px';
+    el.style.top = (top + dy) + 'px';
+  }
+
+  // ============================================================
+  // 要素操作: リサイズ
+  // ============================================================
+  function resizeElement(el, dir, dx, dy, shiftKey) {
+    ensureAbsoluteWithInlinePos(el);
+
+    let x = resizeStartRect.x;
+    let y = resizeStartRect.y;
+    let w = resizeStartRect.w;
+    let h = resizeStartRect.h;
+    const aspect = w / h;
+
+    switch (dir) {
+      case 'e':  w += dx; break;
+      case 'w':  x += dx; w -= dx; break;
+      case 's':  h += dy; break;
+      case 'n':  y += dy; h -= dy; break;
+      case 'se': w += dx; h += dy; break;
+      case 'sw': x += dx; w -= dx; h += dy; break;
+      case 'ne': w += dx; y += dy; h -= dy; break;
+      case 'nw': x += dx; w -= dx; y += dy; h -= dy; break;
+    }
+
+    // Shift: アスペクト比を維持（画像のデフォルトは逆: Shiftで解除）
+    const isImage = el.tagName === 'IMG';
+    const lockAspect = isImage ? !shiftKey : shiftKey;
+    if (lockAspect && aspect > 0) {
+      if (['e','w'].includes(dir)) { h = w / aspect; }
+      else if (['n','s'].includes(dir)) { w = h * aspect; }
+      else { h = w / aspect; }
+    }
+
+    // 最小サイズ
+    w = Math.max(w, 10);
+    h = Math.max(h, 10);
+
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    // Tailwindの幅高さクラスを上書き
+    el.style.minWidth = 'unset';
+    el.style.maxWidth = 'unset';
+    el.style.minHeight = 'unset';
+    el.style.maxHeight = 'unset';
+  }
+
+  // ============================================================
+  // テキスト編集
+  // ============================================================
+  function startEditing(el) {
+    if (isEditing) finishEditing();
+    isEditing = true;
+    el.contentEditable = 'true';
+    el.focus();
+    el.style.outline = '2px solid var(--accent)';
+    el.style.cursor = 'text';
+    selectionBox.style.display = 'none';
+
+    // テキスト全選択
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function finishEditing() {
+    if (!isEditing) return;
+    const editingEl = slideCanvas.querySelector('[contenteditable="true"]');
+    if (editingEl) {
+      editingEl.contentEditable = 'false';
+      editingEl.style.outline = '';
+      editingEl.style.cursor = '';
+    }
+    isEditing = false;
+    window.getSelection().removeAllRanges();
+    saveHistory();
+    updateSelectionBox();
+  }
+
+  // ============================================================
+  // 要素追加
+  // ============================================================
+  function addTextElement() {
+    saveHistory();
+    const el = document.createElement('div');
+    el.textContent = 'テキストを入力';
+    el.style.cssText = 'position:absolute;left:440px;top:310px;font-size:24px;color:#1a365d;font-family:"Noto Sans JP",sans-serif;padding:8px;cursor:default;min-width:20px;min-height:20px;';
+    slideCanvas.appendChild(el);
+    saveHistory();
+    selectElement(el);
+  }
+
+  function addImageElement(dataUrl) {
+    saveHistory();
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.style.cssText = 'position:absolute;left:440px;top:210px;max-width:400px;max-height:300px;cursor:default;';
+    img.onload = () => {
+      // 画像サイズに応じて配置調整
+      const w = Math.min(img.naturalWidth, 400);
+      const h = w * img.naturalHeight / img.naturalWidth;
+      img.style.width = w + 'px';
+      img.style.height = h + 'px';
+      img.style.left = ((SLIDE_W - w) / 2) + 'px';
+      img.style.top = ((SLIDE_H - h) / 2) + 'px';
+      img.style.maxWidth = '';
+      img.style.maxHeight = '';
+      saveHistory();
+      selectElement(img);
+    };
+    slideCanvas.appendChild(img);
+  }
+
+  function addShape(type) {
+    saveHistory();
+    const el = document.createElement('div');
+    const cx = (SLIDE_W - 100) / 2;
+    const cy = (SLIDE_H - 100) / 2;
+
+    if (type === 'rect') {
+      el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:100px;height:100px;background:#2b6cb0;opacity:0.8;`;
+    } else if (type === 'circle') {
+      el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:100px;height:100px;background:#2b6cb0;border-radius:50%;opacity:0.8;`;
+    } else if (type === 'line') {
+      el.style.cssText = `position:absolute;left:${cx - 50}px;top:${cy + 48}px;width:200px;height:4px;background:#1a365d;`;
+    }
+    slideCanvas.appendChild(el);
+    saveHistory();
+    selectElement(el);
+  }
+
+  // ============================================================
+  // Z-Index操作
+  // ============================================================
+  function bringToFront() {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => slideCanvas.appendChild(el));
+    saveHistory();
+  }
+  function sendToBack() {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => slideCanvas.insertBefore(el, slideCanvas.firstChild));
+    saveHistory();
+  }
+  function bringForward() {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => {
+      const next = el.nextElementSibling;
+      if (next) slideCanvas.insertBefore(next, el);
+    });
+    saveHistory();
+  }
+  function sendBackward() {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => {
+      const prev = el.previousElementSibling;
+      if (prev) slideCanvas.insertBefore(el, prev);
+    });
+    saveHistory();
+  }
+
+  // ============================================================
+  // コピー＆ペースト
+  // ============================================================
+  function copyElements() {
+    clipboard = selectedElements.map(el => el.cloneNode(true));
+  }
+
+  function pasteElements() {
+    if (clipboard.length === 0) return;
+    saveHistory();
+    const newEls = [];
+    clipboard.forEach(cloned => {
+      const el = cloned.cloneNode(true);
+      // 少しずらして配置
+      const left = parseFloat(el.style.left) || 0;
+      const top = parseFloat(el.style.top) || 0;
+      el.style.left = (left + 20) + 'px';
+      el.style.top = (top + 20) + 'px';
+      slideCanvas.appendChild(el);
+      newEls.push(el);
+    });
+    saveHistory();
+    selectedElements = newEls;
+    updateSelectionBox();
+    updatePropsPanel();
+  }
+
+  // ============================================================
+  // 削除
+  // ============================================================
+  function deleteSelected() {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => el.remove());
+    selectedElements = [];
+    updateSelectionBox();
+    updatePropsPanel();
+    updateToolbarState();
+    saveHistory();
+  }
+
+  // ============================================================
+  // 整列
+  // ============================================================
+  function alignElement(type) {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements.forEach(el => {
+      ensureAbsoluteWithInlinePos(el);
+      const rect = getElementRect(el);
+      switch (type) {
+        case 'left':    el.style.left = '0px'; break;
+        case 'centerH': el.style.left = ((SLIDE_W - rect.w) / 2) + 'px'; break;
+        case 'right':   el.style.left = (SLIDE_W - rect.w) + 'px'; break;
+        case 'top':     el.style.top = '0px'; break;
+        case 'centerV': el.style.top = ((SLIDE_H - rect.h) / 2) + 'px'; break;
+        case 'bottom':  el.style.top = (SLIDE_H - rect.h) + 'px'; break;
+      }
+    });
+    saveHistory();
+    updateSelectionBox();
+    updatePropsPanel();
+  }
+
+  // ============================================================
+  // スナップガイドライン
+  // ============================================================
+  function clearSnapGuides() {
+    snapGuides.forEach(g => g.remove());
+    snapGuides = [];
+  }
+
+  function showSnapGuides(movingEl) {
+    clearSnapGuides();
+    const r = getElementRect(movingEl);
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+
+    // スライド中央
+    if (Math.abs(cx - SLIDE_W / 2) < SNAP_THRESHOLD) {
+      addGuide('vertical', SLIDE_W / 2);
+    }
+    if (Math.abs(cy - SLIDE_H / 2) < SNAP_THRESHOLD) {
+      addGuide('horizontal', SLIDE_H / 2);
+    }
+  }
+
+  function addGuide(type, pos) {
+    const g = document.createElement('div');
+    g.className = `snap-guide ${type}`;
+    if (type === 'horizontal') g.style.top = pos + 'px';
+    else g.style.left = pos + 'px';
+    slideCanvas.appendChild(g);
+    snapGuides.push(g);
+  }
+
+  // ============================================================
+  // マウスイベント
+  // ============================================================
+  canvasArea.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return; // 左クリックのみ
+    if (isEditing && !slideCanvas.querySelector('[contenteditable="true"]')?.contains(e.target)) {
+      finishEditing();
+    }
+
+    // リサイズハンドルのクリック
+    const handle = e.target.closest('.resize-handle');
+    if (handle && selectedElements.length > 0) {
+      e.preventDefault();
+      isResizing = true;
+      resizeHandle = handle.dataset.dir;
+      resizeStartRect = getElementRect(selectedElements[0]);
+      dragStart = toSlideCoords(e.clientX, e.clientY);
+      return;
+    }
+
+    // スライドキャンバス内の要素クリック
+    const slideCoords = toSlideCoords(e.clientX, e.clientY);
+    if (slideCoords.x >= 0 && slideCoords.x <= SLIDE_W && slideCoords.y >= 0 && slideCoords.y <= SLIDE_H) {
+      const target = findTopmostTarget(e.clientX, e.clientY, e.altKey);
+      if (target && isSelectableElement(target)) {
+        if (!isEditing) {
+          e.preventDefault();
+          selectElement(target, e.shiftKey);
+          isDragging = true;
+          dragStart = slideCoords;
+          // 各要素の開始位置を保存
+          selectedElements.forEach(el => {
+            ensureAbsoluteWithInlinePos(el);
+            el._startLeft = parseFloat(el.style.left) || 0;
+            el._startTop = parseFloat(el.style.top) || 0;
+          });
+        }
+      } else if (!e.target.closest('.selection-box') && !isEditing) {
+        // 何もない場所をクリック → 選択解除 & 範囲選択開始
+        selectElement(null);
+        isMarquee = true;
+        marqueeStart = slideCoords;
+        marqueeEl.style.display = 'block';
+        marqueeEl.style.left = slideCoords.x + 'px';
+        marqueeEl.style.top = slideCoords.y + 'px';
+        marqueeEl.style.width = '0';
+        marqueeEl.style.height = '0';
+      }
+    }
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (isDragging && selectedElements.length > 0) {
+      const pos = toSlideCoords(e.clientX, e.clientY);
+      const dx = pos.x - dragStart.x;
+      const dy = pos.y - dragStart.y;
+
+      selectedElements.forEach(el => {
+        el.style.left = (el._startLeft + dx) + 'px';
+        el.style.top = (el._startTop + dy) + 'px';
+      });
+
+      showSnapGuides(selectedElements[0]);
+      updateSelectionBox();
+      updatePropsPanel();
+    }
+
+    if (isResizing && selectedElements.length > 0) {
+      const pos = toSlideCoords(e.clientX, e.clientY);
+      const dx = pos.x - dragStart.x;
+      const dy = pos.y - dragStart.y;
+      resizeElement(selectedElements[0], resizeHandle, dx, dy, e.shiftKey);
+      updateSelectionBox();
+      updatePropsPanel();
+    }
+
+    if (isMarquee && marqueeStart) {
+      const pos = toSlideCoords(e.clientX, e.clientY);
+      const x = Math.min(pos.x, marqueeStart.x);
+      const y = Math.min(pos.y, marqueeStart.y);
+      const w = Math.abs(pos.x - marqueeStart.x);
+      const h = Math.abs(pos.y - marqueeStart.y);
+      marqueeEl.style.left = x + 'px';
+      marqueeEl.style.top = y + 'px';
+      marqueeEl.style.width = w + 'px';
+      marqueeEl.style.height = h + 'px';
+    }
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (isDragging) {
+      isDragging = false;
+      clearSnapGuides();
+      // 実際に動いた場合のみ履歴を保存
+      const pos = toSlideCoords(e.clientX, e.clientY);
+      if (dragStart && (Math.abs(pos.x - dragStart.x) > 1 || Math.abs(pos.y - dragStart.y) > 1)) {
+        saveHistory();
+      }
+      dragStart = null;
+    }
+
+    if (isResizing) {
+      isResizing = false;
+      saveHistory();
+      dragStart = null;
+      resizeHandle = null;
+      resizeStartRect = null;
+    }
+
+    if (isMarquee) {
+      isMarquee = false;
+      // 範囲選択で囲んだ要素を選択
+      if (marqueeEl && marqueeStart) {
+        const pos = toSlideCoords(e.clientX, e.clientY);
+        const rx = Math.min(pos.x, marqueeStart.x);
+        const ry = Math.min(pos.y, marqueeStart.y);
+        const rw = Math.abs(pos.x - marqueeStart.x);
+        const rh = Math.abs(pos.y - marqueeStart.y);
+
+        if (rw > 5 && rh > 5) {
+          selectedElements = [];
+          Array.from(slideCanvas.children).forEach(el => {
+            if (!isSelectableElement(el)) return;
+            const er = getElementRect(el);
+            // 要素の中心が範囲内にあれば選択
+            const ecx = er.x + er.w / 2;
+            const ecy = er.y + er.h / 2;
+            if (ecx >= rx && ecx <= rx + rw && ecy >= ry && ecy <= ry + rh) {
+              selectedElements.push(el);
+            }
+          });
+          updateSelectionBox();
+          updatePropsPanel();
+          updateToolbarState();
+        }
+      }
+      marqueeEl.style.display = 'none';
+      marqueeStart = null;
+    }
+  });
+
+  // ── ダブルクリック → テキスト編集 ──
+  slideCanvas.addEventListener('dblclick', (e) => {
+    const target = e.target;
+    if (!slideCanvas.contains(target) || target === slideCanvas) return;
+    // テキストを含む要素の場合のみ編集
+    if (target.tagName === 'IMG') return;
+    startEditing(target);
+  });
+
+  // ── 右クリックメニュー ──
+  canvasArea.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (selectedElements.length === 0) {
+      const target = findTargetElement(e.target, e.altKey);
+      if (target && isSelectableElement(target)) {
+        selectElement(target);
+      } else {
+        return;
+      }
+    }
+    ctxMenu.style.left = e.clientX + 'px';
+    ctxMenu.style.top = e.clientY + 'px';
+    ctxMenu.classList.add('show');
+  });
+
+  document.addEventListener('click', () => {
+    ctxMenu.classList.remove('show');
+  });
+
+  ctxMenu.addEventListener('click', (e) => {
+    const action = e.target.closest('.ctx-item')?.dataset.action;
+    if (!action) return;
+    switch (action) {
+      case 'copy': copyElements(); break;
+      case 'paste': pasteElements(); break;
+      case 'delete': deleteSelected(); break;
+      case 'bringFront': bringToFront(); break;
+      case 'bringForward': bringForward(); break;
+      case 'sendBackward': sendBackward(); break;
+      case 'sendBack': sendToBack(); break;
+    }
+    ctxMenu.classList.remove('show');
+  });
+
+  // ============================================================
+  // キーボードショートカット
+  // ============================================================
+  document.addEventListener('keydown', (e) => {
+    // テキスト編集中はショートカットを制限
+    if (isEditing) {
+      if (e.key === 'Escape') { finishEditing(); e.preventDefault(); }
+      return;
+    }
+
+    const ctrl = e.ctrlKey || e.metaKey;
+
+    // Ctrl+Z: Undo
+    if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+    // Ctrl+Y or Ctrl+Shift+Z: Redo
+    if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+    // Ctrl+S: Save
+    if (ctrl && e.key === 's' && e.shiftKey) { e.preventDefault(); saveHTMLAs(); return; }
+    if (ctrl && e.key === 's') { e.preventDefault(); saveHTML(); return; }
+    // Ctrl+C: Copy
+    if (ctrl && e.key === 'c') { e.preventDefault(); copyElements(); return; }
+    // Ctrl+V: Paste
+    if (ctrl && e.key === 'v') { e.preventDefault(); pasteElements(); return; }
+    // Ctrl+A: 全選択
+    if (ctrl && e.key === 'a') { e.preventDefault(); selectAll(); return; }
+    // Ctrl+]: 前面へ
+    if (ctrl && e.key === ']') { e.preventDefault(); e.shiftKey ? bringToFront() : bringForward(); return; }
+    // Ctrl+[: 背面へ
+    if (ctrl && e.key === '[') { e.preventDefault(); e.shiftKey ? sendToBack() : sendBackward(); return; }
+
+    // Delete / Backspace: 削除
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (selectedElements.length > 0) { e.preventDefault(); deleteSelected(); }
+      return;
+    }
+
+    // Escape: 選択解除
+    if (e.key === 'Escape') { selectElement(null); return; }
+
+    // 矢印キー: 移動
+    const nudge = e.shiftKey ? 10 : 1;
+    if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key) && selectedElements.length > 0) {
+      e.preventDefault();
+      saveHistory();
+      selectedElements.forEach(el => {
+        ensureAbsoluteWithInlinePos(el);
+        const left = parseFloat(el.style.left) || 0;
+        const top = parseFloat(el.style.top) || 0;
+        switch (e.key) {
+          case 'ArrowLeft':  el.style.left = (left - nudge) + 'px'; break;
+          case 'ArrowRight': el.style.left = (left + nudge) + 'px'; break;
+          case 'ArrowUp':    el.style.top = (top - nudge) + 'px'; break;
+          case 'ArrowDown':  el.style.top = (top + nudge) + 'px'; break;
+        }
+      });
+      saveHistory();
+      updateSelectionBox();
+      updatePropsPanel();
+    }
+
+    // Tab: 次の要素を選択
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const children = Array.from(slideCanvas.children).filter(isSelectableElement);
+      if (children.length === 0) return;
+      const idx = selectedElements.length > 0 ? children.indexOf(selectedElements[0]) : -1;
+      const next = (idx + (e.shiftKey ? -1 : 1) + children.length) % children.length;
+      selectElement(children[next]);
+    }
+  });
+
+  // ============================================================
+  // ツールバーボタンイベント
+  // ============================================================
+  // File System Access APIが使えるかチェック
+  const hasFileSystemAPI = ('showOpenFilePicker' in window);
+
+  // フォルダ選択（画像付きスライドの推奨方法）
+  $('btnOpenFolder').addEventListener('click', () => {
+    if (hasFileSystemAPI) {
+      openFolder();
+    } else {
+      folderInput.click();
+    }
+  });
+  folderInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) loadFolder(e.target.files);
+    e.target.value = '';
+  });
+
+  // 単体HTMLファイル選択
+  $('btnOpen').addEventListener('click', () => {
+    if (hasFileSystemAPI) {
+      openSingleFile();
+    } else {
+      fileInput.click();
+    }
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) loadHTMLFile(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  $('btnSave').addEventListener('click', saveHTML);
+  $('btnSaveAs').addEventListener('click', saveHTMLAs);
+  $('btnUndo').addEventListener('click', undo);
+  $('btnRedo').addEventListener('click', redo);
+  $('btnAddText').addEventListener('click', addTextElement);
+  $('btnAddImage').addEventListener('click', () => imageInput.click());
+  $('btnAddRect').addEventListener('click', () => addShape('rect'));
+  $('btnAddCircle').addEventListener('click', () => addShape('circle'));
+  $('btnAddLine').addEventListener('click', () => addShape('line'));
+  $('btnDelete').addEventListener('click', deleteSelected);
+  $('btnBringFront').addEventListener('click', bringToFront);
+  $('btnBringForward').addEventListener('click', bringForward);
+  $('btnSendBackward').addEventListener('click', sendBackward);
+  $('btnSendBack').addEventListener('click', sendToBack);
+
+  $('btnGrid').addEventListener('click', () => {
+    gridOverlay.classList.toggle('visible');
+    $('btnGrid').classList.toggle('active');
+  });
+
+  // 画像ファイル選択
+  imageInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => addImageElement(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  });
+
+  // ============================================================
+  // プロパティパネル入力イベント
+  // ============================================================
+  function bindPropInput(id, applyFn) {
+    $(id).addEventListener('input', () => {
+      if (selectedElements.length === 0) return;
+      applyFn(selectedElements[0], $(id).value);
+      updateSelectionBox();
+    });
+    $(id).addEventListener('change', () => {
+      if (selectedElements.length === 0) return;
+      saveHistory();
+    });
+  }
+
+  bindPropInput('propX', (el, v) => { ensureAbsoluteWithInlinePos(el); el.style.left = v + 'px'; });
+  bindPropInput('propY', (el, v) => { ensureAbsoluteWithInlinePos(el); el.style.top = v + 'px'; });
+  bindPropInput('propW', (el, v) => { el.style.width = v + 'px'; el.style.minWidth = 'unset'; el.style.maxWidth = 'unset'; });
+  bindPropInput('propH', (el, v) => { el.style.height = v + 'px'; el.style.minHeight = 'unset'; el.style.maxHeight = 'unset'; });
+  bindPropInput('propFontSize', (el, v) => { el.style.fontSize = v + 'px'; });
+  bindPropInput('propColor', (el, v) => { el.style.color = v; });
+  bindPropInput('propFontWeight', (el, v) => { el.style.fontWeight = v; });
+  bindPropInput('propBgColor', (el, v) => { el.style.backgroundColor = v; });
+  bindPropInput('propOpacity', (el, v) => {
+    el.style.opacity = v;
+    $('propOpacityVal').textContent = parseFloat(v).toFixed(2);
+  });
+  bindPropInput('propBorderRadius', (el, v) => { el.style.borderRadius = v + 'px'; });
+  bindPropInput('propBorderWidth', (el, v) => { el.style.borderWidth = v + 'px'; el.style.borderStyle = v > 0 ? 'solid' : 'none'; });
+  bindPropInput('propBorderColor', (el, v) => { el.style.borderColor = v; });
+
+  // 背景なしボタン
+  $('propBgNone').addEventListener('click', () => {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    selectedElements[0].style.backgroundColor = 'transparent';
+    $('propBgColor').value = '#ffffff';
+    saveHistory();
+  });
+
+  // テキスト装飾ボタン
+  $('propBold').addEventListener('click', () => {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    const el = selectedElements[0];
+    const cs = getComputedStyle(el);
+    el.style.fontWeight = parseInt(cs.fontWeight) >= 600 ? '400' : '700';
+    saveHistory();
+    updatePropsPanel();
+  });
+  $('propItalic').addEventListener('click', () => {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    const el = selectedElements[0];
+    el.style.fontStyle = getComputedStyle(el).fontStyle === 'italic' ? 'normal' : 'italic';
+    saveHistory();
+  });
+  $('propUnderline').addEventListener('click', () => {
+    if (selectedElements.length === 0) return;
+    saveHistory();
+    const el = selectedElements[0];
+    el.style.textDecoration = getComputedStyle(el).textDecoration.includes('underline') ? 'none' : 'underline';
+    saveHistory();
+  });
+
+  // 整列ボタン
+  document.querySelectorAll('.align-btn[data-align]').forEach(btn => {
+    btn.addEventListener('click', () => alignElement(btn.dataset.align));
+  });
+
+  // ============================================================
+  // ドラッグ＆ドロップ（ファイル / 画像）
+  // ============================================================
+  canvasArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    dropIndicator.classList.add('visible');
+  });
+
+  canvasArea.addEventListener('dragleave', (e) => {
+    if (!canvasArea.contains(e.relatedTarget)) {
+      dropIndicator.classList.remove('visible');
+    }
+  });
+
+  canvasArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropIndicator.classList.remove('visible');
+
+    const files = Array.from(e.dataTransfer.files);
+    files.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => addImageElement(ev.target.result);
+        reader.readAsDataURL(file);
+      } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+        loadHTMLFile(file);
+      }
+    });
+  });
+
+  // ============================================================
+  // ウィンドウリサイズ
+  // ============================================================
+  window.addEventListener('resize', () => {
+    updateScale();
+    updateSelectionBox();
+  });
+
+  // 初期化
+  updateToolbarState();
+
+})();
+</script>
+</body>
+</html>

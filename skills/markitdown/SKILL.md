@@ -195,6 +195,14 @@ print(result.text_content)
 
 ---
 
+## 運用ルール
+
+- **PPTX → Markdown 変換時は本スキルを第一選択とすること**
+  - 独自スクリプトや他ツールでの変換は禁止。必ず `skills/markitdown/scripts/convert.py` を使用する
+  - 位置情報・レイアウト情報が追加で必要な場合のみ python-pptx で補完する
+
+---
+
 ## 注意事項
 
 - **レイアウト情報は非対応**: markitdown は LLM 向けにテキストを抽出する設計。色・フォント・配置は取れない
