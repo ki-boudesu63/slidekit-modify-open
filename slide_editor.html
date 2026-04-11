@@ -1495,22 +1495,83 @@ ${slideContent}
 
   // 要素をabsolute+インラインleft/topに変換し、視覚的な位置を維持する
   function ensureAbsoluteWithInlinePos(el) {
-    // 現在の視覚的な位置を取得（Tailwindクラスでの位置も含む）
-    const rect = getElementRect(el);
     const cs = getComputedStyle(el);
+    const alreadyAbsolute = (cs.position === 'absolute' || cs.position === 'fixed');
 
-    // absoluteでない場合はabsoluteに変換
-    if (cs.position !== 'absolute' && cs.position !== 'fixed') {
+    // 既にabsoluteでインラインleft/topがある場合はスキップ
+    if (alreadyAbsolute && el.style.left && el.style.top) return;
+
+    // 親がslideCanvas以外の場合、兄弟要素も一括でabsolute化してフローのズレを防ぐ
+    const parent = el.parentElement;
+    if (parent && parent !== slideCanvas) {
+      absolutifySiblings(parent);
+      return;
+    }
+
+    // slideCanvas直下の場合は対象要素のみ変換
+    const rect = getElementRect(el);
+
+    if (!alreadyAbsolute) {
+      el.style.width = rect.w + 'px';
       el.style.position = 'absolute';
       el.style.margin = '0';
     }
 
-    // Tailwindのtop/right/bottom/left クラスによる位置をインラインで上書き
-    // これにより top-10 right-10 などのクラスの影響を排除する
-    el.style.left = rect.x + 'px';
-    el.style.top = rect.y + 'px';
+    let offsetX = 0, offsetY = 0;
+    const offsetParent = el.offsetParent;
+    if (offsetParent && offsetParent !== slideCanvas) {
+      const parentRect = getElementRect(offsetParent);
+      offsetX = parentRect.x;
+      offsetY = parentRect.y;
+    }
+
+    el.style.left = (rect.x - offsetX) + 'px';
+    el.style.top = (rect.y - offsetY) + 'px';
     el.style.right = 'auto';
     el.style.bottom = 'auto';
+  }
+
+  // 同一親コンテナ内の全兄弟要素をabsolute化して位置を固定する
+  // 1つの要素を移動しても他の兄弟がズレないようにする
+  function absolutifySiblings(parent) {
+    const children = Array.from(parent.children).filter(child => {
+      if (child.classList.contains('snap-guide') || child.dataset.editorIgnore) return false;
+      return true;
+    });
+
+    // 全子要素の現在位置・状態をフロー変更前に記録
+    const slideRects = children.map(child => getElementRect(child));
+    const skipFlags = children.map(child => {
+      const cs = getComputedStyle(child);
+      const isAbs = (cs.position === 'absolute' || cs.position === 'fixed');
+      return isAbs && child.style.left && child.style.top;
+    });
+    const wasAbsolute = children.map(child => {
+      const cs = getComputedStyle(child);
+      return (cs.position === 'absolute' || cs.position === 'fixed');
+    });
+
+    // まず全子要素をabsoluteに変換（left/topは後で一括設定）
+    children.forEach((child, i) => {
+      if (skipFlags[i]) return;
+      if (!wasAbsolute[i]) {
+        child.style.width = slideRects[i].w + 'px';
+        child.style.position = 'absolute';
+        child.style.margin = '0';
+      }
+    });
+
+    // 全子要素のposition変更後の親の位置を取得して基準にする
+    const parentRect = getElementRect(parent);
+
+    // left/topを設定（変更後の親位置からの相対値）
+    children.forEach((child, i) => {
+      if (skipFlags[i]) return;
+      child.style.left = (slideRects[i].x - parentRect.x) + 'px';
+      child.style.top = (slideRects[i].y - parentRect.y) + 'px';
+      child.style.right = 'auto';
+      child.style.bottom = 'auto';
+    });
   }
 
   function moveElement(el, dx, dy) {
@@ -1814,12 +1875,6 @@ ${slideContent}
           selectElement(target, e.shiftKey);
           isDragging = true;
           dragStart = slideCoords;
-          // 各要素の開始位置を保存
-          selectedElements.forEach(el => {
-            ensureAbsoluteWithInlinePos(el);
-            el._startLeft = parseFloat(el.style.left) || 0;
-            el._startTop = parseFloat(el.style.top) || 0;
-          });
         }
       } else if (!e.target.closest('.selection-box') && !isEditing) {
         // 何もない場所をクリック → 選択解除 & 範囲選択開始
@@ -1840,6 +1895,17 @@ ${slideContent}
       const pos = toSlideCoords(e.clientX, e.clientY);
       const dx = pos.x - dragStart.x;
       const dy = pos.y - dragStart.y;
+
+      // 初回のドラッグ移動時のみabsoluteに変換して開始位置を記録
+      if (!selectedElements[0]._dragReady) {
+        saveHistory();
+        selectedElements.forEach(el => {
+          ensureAbsoluteWithInlinePos(el);
+          el._startLeft = parseFloat(el.style.left) || 0;
+          el._startTop = parseFloat(el.style.top) || 0;
+          el._dragReady = true;
+        });
+      }
 
       selectedElements.forEach(el => {
         el.style.left = (el._startLeft + dx) + 'px';
@@ -1877,11 +1943,17 @@ ${slideContent}
     if (isDragging) {
       isDragging = false;
       clearSnapGuides();
-      // 実際に動いた場合のみ履歴を保存
+      // 実際にドラッグした場合のみ履歴を保存
       const pos = toSlideCoords(e.clientX, e.clientY);
-      if (dragStart && (Math.abs(pos.x - dragStart.x) > 1 || Math.abs(pos.y - dragStart.y) > 1)) {
+      if (dragStart && selectedElements[0]?._dragReady && (Math.abs(pos.x - dragStart.x) > 1 || Math.abs(pos.y - dragStart.y) > 1)) {
         saveHistory();
       }
+      // ドラッグ用の一時プロパティをクリーンアップ
+      selectedElements.forEach(el => {
+        delete el._startLeft;
+        delete el._startTop;
+        delete el._dragReady;
+      });
       dragStart = null;
     }
 
