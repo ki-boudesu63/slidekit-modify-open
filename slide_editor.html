@@ -186,6 +186,33 @@ body {
 .resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
 .resize-handle.w  { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
 
+/* ── 回転ハンドル ── */
+.rotate-handle {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: grab;
+  pointer-events: all;
+  z-index: 102;
+}
+.rotate-line {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 20px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 101;
+}
+
 /* ── 範囲選択矩形 ── */
 .marquee {
   position: absolute;
@@ -414,6 +441,7 @@ body {
     <button class="tb" id="btnAddImage" title="画像挿入" disabled><i class="fas fa-image"></i><span class="tb-label">画像</span></button>
     <button class="tb" id="btnAddRect" title="矩形追加" disabled><i class="fas fa-square"></i><span class="tb-label">矩形</span></button>
     <button class="tb" id="btnAddCircle" title="円追加" disabled><i class="fas fa-circle"></i><span class="tb-label">円</span></button>
+    <button class="tb" id="btnAddTriangle" title="三角追加" disabled><i class="fas fa-play"></i><span class="tb-label">三角</span></button>
     <button class="tb" id="btnAddLine" title="線追加" disabled><i class="fas fa-minus"></i><span class="tb-label">線</span></button>
   </div>
   <div class="toolbar-group">
@@ -539,6 +567,11 @@ body {
           <span id="propOpacityVal" style="width:30px;text-align:right;font-size:11px;color:var(--text2)">1</span>
         </div>
         <div class="prop-row">
+          <span class="prop-label">回転</span>
+          <input type="number" class="prop-input" id="propRotation" step="1">
+          <span class="prop-label">&deg;</span>
+        </div>
+        <div class="prop-row">
           <span class="prop-label">角丸</span>
           <input type="number" class="prop-input" id="propBorderRadius" min="0" step="1">
           <span class="prop-label">px</span>
@@ -623,6 +656,9 @@ body {
   let isEditing = false;     // テキスト編集中
   let isDragging = false;
   let isResizing = false;
+  let isRotating = false;
+  let rotateStartAngle = 0;
+  let rotateStartDeg = 0;
   let isMarquee = false;
   let dragStart = null;
   let resizeHandle = null;
@@ -663,6 +699,16 @@ body {
       selectionBox.appendChild(h);
       handles[d] = h;
     });
+
+    // 回転ハンドル
+    const rotateLine = document.createElement('div');
+    rotateLine.className = 'rotate-line';
+    selectionBox.appendChild(rotateLine);
+
+    const rotateHandle = document.createElement('div');
+    rotateHandle.className = 'rotate-handle';
+    rotateHandle.dataset.action = 'rotate';
+    selectionBox.appendChild(rotateHandle);
 
     marqueeEl = document.createElement('div');
     marqueeEl.className = 'marquee';
@@ -896,6 +942,7 @@ body {
     $('propOpacity').value = parseFloat(cs.opacity) || 1;
     $('propOpacityVal').textContent = parseFloat(cs.opacity).toFixed(2);
     $('propBorderRadius').value = parseInt(cs.borderRadius) || 0;
+    $('propRotation').value = Math.round(getRotation(el));
     $('propBorderWidth').value = parseInt(cs.borderWidth) || 0;
     $('propBorderColor').value = rgbToHex(cs.borderColor) || '#000000';
 
@@ -925,6 +972,7 @@ body {
     $('btnAddImage').disabled = !hasFile;
     $('btnAddRect').disabled = !hasFile;
     $('btnAddCircle').disabled = !hasFile;
+    $('btnAddTriangle').disabled = !hasFile;
     $('btnAddLine').disabled = !hasFile;
     $('btnDelete').disabled = !hasSel;
     $('btnBringFront').disabled = !hasSel;
@@ -1592,9 +1640,24 @@ ${slideContent}
     return { x: parseFloat(m[1]) || 0, y: parseFloat(m[2]) || 0 };
   }
 
+  // 現在の回転角度（度）を取得
+  function getRotation(el) {
+    const t = el.style.transform || '';
+    const m = t.match(/rotate\(\s*([^)]+)\)/);
+    return m ? (parseFloat(m[1]) || 0) : 0;
+  }
+
+  // 回転を保持したtransform文字列を構築
+  function buildTransform(tx, ty, rot) {
+    let t = `translate(${tx}px, ${ty}px)`;
+    if (rot !== 0) t += ` rotate(${rot}deg)`;
+    return t;
+  }
+
   function moveElement(el, dx, dy) {
     const t = getTranslateValues(el);
-    el.style.transform = `translate(${t.x + dx}px, ${t.y + dy}px)`;
+    const rot = getRotation(el);
+    el.style.transform = buildTransform(t.x + dx, t.y + dy, rot);
   }
 
   // ============================================================
@@ -1633,7 +1696,7 @@ ${slideContent}
 
     // 位置変更はtranslateで（フローを壊さない）
     const t = el._resizeTranslateStart || { x: 0, y: 0 };
-    el.style.transform = `translate(${t.x + (x - resizeStartRect.x)}px, ${t.y + (y - resizeStartRect.y)}px)`;
+    el.style.transform = buildTransform(t.x + (x - resizeStartRect.x), t.y + (y - resizeStartRect.y), getRotation(el));
     el.style.width = w + 'px';
     el.style.height = h + 'px';
     el.style.minWidth = 'unset';
@@ -1720,6 +1783,8 @@ ${slideContent}
       el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:100px;height:100px;background:#2b6cb0;opacity:0.8;`;
     } else if (type === 'circle') {
       el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:100px;height:100px;background:#2b6cb0;border-radius:50%;opacity:0.8;`;
+    } else if (type === 'triangle') {
+      el.style.cssText = `position:absolute;left:${cx}px;top:${cy}px;width:100px;height:100px;background:#2b6cb0;clip-path:polygon(50% 0%, 0% 100%, 100% 100%);opacity:0.8;`;
     } else if (type === 'line') {
       el.style.cssText = `position:absolute;left:${cx - 50}px;top:${cy + 48}px;width:200px;height:4px;background:#1a365d;`;
     }
@@ -1821,7 +1886,7 @@ ${slideContent}
         case 'centerV': targetY = (SLIDE_H - rect.h) / 2; break;
         case 'bottom':  targetY = SLIDE_H - rect.h; break;
       }
-      el.style.transform = `translate(${t.x + (targetX - rect.x)}px, ${t.y + (targetY - rect.y)}px)`;
+      el.style.transform = buildTransform(t.x + (targetX - rect.x), t.y + (targetY - rect.y), getRotation(el));
     });
     saveHistory();
     updateSelectionBox();
@@ -1869,6 +1934,20 @@ ${slideContent}
       finishEditing();
     }
 
+    // 回転ハンドルのクリック
+    if (e.target.closest('.rotate-handle') && selectedElements.length > 0) {
+      e.preventDefault();
+      isRotating = true;
+      const rect = getElementRect(selectedElements[0]);
+      const centerX = rect.x + rect.w / 2;
+      const centerY = rect.y + rect.h / 2;
+      const mouse = toSlideCoords(e.clientX, e.clientY);
+      rotateStartAngle = Math.atan2(mouse.y - centerY, mouse.x - centerX);
+      rotateStartDeg = getRotation(selectedElements[0]);
+      saveHistory();
+      return;
+    }
+
     // リサイズハンドルのクリック
     const handle = e.target.closest('.resize-handle');
     if (handle && selectedElements.length > 0) {
@@ -1884,7 +1963,31 @@ ${slideContent}
     // スライドキャンバス内の要素クリック
     const slideCoords = toSlideCoords(e.clientX, e.clientY);
     if (slideCoords.x >= 0 && slideCoords.x <= SLIDE_W && slideCoords.y >= 0 && slideCoords.y <= SLIDE_H) {
-      const target = findTopmostTarget(e.clientX, e.clientY, e.altKey);
+      // Alt+クリック: 選択中の要素の親を一段ずつ遡って選択
+      if (e.altKey && selectedElements.length > 0 && !isEditing) {
+        e.preventDefault();
+        const current = selectedElements[0];
+        const parent = current.parentElement;
+        if (parent && parent !== slideCanvas && slideCanvas.contains(parent)) {
+          selectElement(parent);
+        }
+        return;
+      }
+
+      // 選択済み要素の上をクリック → 再選択せずドラッグ開始
+      // elementFromPointでDOM上の最前面要素が選択済み要素かを確認（矩形判定だと広すぎる）
+      if (selectedElements.length > 0 && !isEditing) {
+        const topEl = document.elementFromPoint(e.clientX, e.clientY);
+        const onSelected = selectedElements.some(el => el === topEl || el.contains(topEl));
+        if (onSelected) {
+          e.preventDefault();
+          isDragging = true;
+          dragStart = slideCoords;
+          return;
+        }
+      }
+
+      const target = findTopmostTarget(e.clientX, e.clientY, false);
       if (target && isSelectableElement(target)) {
         if (!isEditing) {
           e.preventDefault();
@@ -1923,7 +2026,7 @@ ${slideContent}
 
       selectedElements.forEach(el => {
         const t = el._translateStart;
-        el.style.transform = `translate(${t.x + dx}px, ${t.y + dy}px)`;
+        el.style.transform = buildTransform(t.x + dx, t.y + dy, getRotation(el));
       });
 
       showSnapGuides(selectedElements[0]);
@@ -1937,6 +2040,21 @@ ${slideContent}
       const dy = pos.y - dragStart.y;
       resizeElement(selectedElements[0], resizeHandle, dx, dy, e.shiftKey);
       updateSelectionBox();
+      updatePropsPanel();
+    }
+
+    if (isRotating && selectedElements.length > 0) {
+      const el = selectedElements[0];
+      const rect = getElementRect(el);
+      const centerX = rect.x + rect.w / 2;
+      const centerY = rect.y + rect.h / 2;
+      const mouse = toSlideCoords(e.clientX, e.clientY);
+      const currentAngle = Math.atan2(mouse.y - centerY, mouse.x - centerX);
+      let deg = rotateStartDeg + (currentAngle - rotateStartAngle) * 180 / Math.PI;
+      // Shift: 15度単位にスナップ
+      if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+      const t = getTranslateValues(el);
+      el.style.transform = buildTransform(t.x, t.y, deg);
       updatePropsPanel();
     }
 
@@ -1977,6 +2095,11 @@ ${slideContent}
       dragStart = null;
       resizeHandle = null;
       resizeStartRect = null;
+    }
+
+    if (isRotating) {
+      isRotating = false;
+      saveHistory();
     }
 
     if (isMarquee) {
@@ -2108,7 +2231,7 @@ ${slideContent}
           case 'ArrowUp':    ty -= nudge; break;
           case 'ArrowDown':  ty += nudge; break;
         }
-        el.style.transform = `translate(${tx}px, ${ty}px)`;
+        el.style.transform = buildTransform(tx, ty, getRotation(el));
       });
       saveHistory();
       updateSelectionBox();
@@ -2166,6 +2289,7 @@ ${slideContent}
   $('btnAddImage').addEventListener('click', () => imageInput.click());
   $('btnAddRect').addEventListener('click', () => addShape('rect'));
   $('btnAddCircle').addEventListener('click', () => addShape('circle'));
+  $('btnAddTriangle').addEventListener('click', () => addShape('triangle'));
   $('btnAddLine').addEventListener('click', () => addShape('line'));
   $('btnDelete').addEventListener('click', deleteSelected);
   $('btnBringFront').addEventListener('click', bringToFront);
@@ -2206,12 +2330,12 @@ ${slideContent}
   bindPropInput('propX', (el, v) => {
     const rect = getElementRect(el);
     const t = getTranslateValues(el);
-    el.style.transform = `translate(${t.x + (parseFloat(v) - rect.x)}px, ${t.y}px)`;
+    el.style.transform = buildTransform(t.x + (parseFloat(v) - rect.x), t.y, getRotation(el));
   });
   bindPropInput('propY', (el, v) => {
     const rect = getElementRect(el);
     const t = getTranslateValues(el);
-    el.style.transform = `translate(${t.x}px, ${t.y + (parseFloat(v) - rect.y)}px)`;
+    el.style.transform = buildTransform(t.x, t.y + (parseFloat(v) - rect.y), getRotation(el));
   });
   bindPropInput('propW', (el, v) => { el.style.width = v + 'px'; el.style.minWidth = 'unset'; el.style.maxWidth = 'unset'; });
   bindPropInput('propH', (el, v) => { el.style.height = v + 'px'; el.style.minHeight = 'unset'; el.style.maxHeight = 'unset'; });
@@ -2222,6 +2346,10 @@ ${slideContent}
   bindPropInput('propOpacity', (el, v) => {
     el.style.opacity = v;
     $('propOpacityVal').textContent = parseFloat(v).toFixed(2);
+  });
+  bindPropInput('propRotation', (el, v) => {
+    const t = getTranslateValues(el);
+    el.style.transform = buildTransform(t.x, t.y, parseFloat(v) || 0);
   });
   bindPropInput('propBorderRadius', (el, v) => { el.style.borderRadius = v + 'px'; });
   bindPropInput('propBorderWidth', (el, v) => { el.style.borderWidth = v + 'px'; el.style.borderStyle = v > 0 ? 'solid' : 'none'; });
