@@ -330,6 +330,69 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── スライドパネル（左側サムネイル一覧） ── */
+.slide-panel {
+  width: 200px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+}
+.slide-panel.visible { display: flex; }
+.slide-panel-header {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.slide-panel-list { flex: 1; overflow-y: auto; }
+.slide-thumb {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s;
+  border-left: 3px solid transparent;
+}
+.slide-thumb:hover { background: var(--surface2); }
+.slide-thumb.active {
+  background: var(--accent-dim);
+  border-left-color: var(--accent);
+}
+.slide-thumb-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fff;
+  position: relative;
+}
+.slide-thumb-preview-inner {
+  width: 1280px;
+  height: 720px;
+  transform-origin: top left;
+  pointer-events: none;
+  overflow: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.slide-thumb-name {
+  font-size: 10px;
+  color: var(--text2);
+  margin-top: 4px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -369,6 +432,11 @@ body {
 
 <!-- ═══ メイン ═══ -->
 <div class="main">
+  <!-- スライドパネル（左側サムネイル一覧） -->
+  <div class="slide-panel" id="slidePanel">
+    <div class="slide-panel-header">スライド一覧</div>
+    <div class="slide-panel-list" id="slidePanelList"></div>
+  </div>
   <!-- キャンバスエリア -->
   <div class="canvas-area" id="canvasArea">
     <!-- ウェルカム画面 -->
@@ -537,6 +605,8 @@ body {
   const fileInput = $('fileInput');
   const folderInput = $('folderInput');
   const imageInput = $('imageInput');
+  const slidePanel = $('slidePanel');
+  const slidePanelList = $('slidePanelList');
 
   // ── 定数 ──
   const SLIDE_W = 1280;
@@ -565,6 +635,9 @@ body {
   let originalImageSrcs = {}; // blob URL → 元の相対パス（保存時復元用）
   let currentFileHandle = null;  // File System Access API のファイルハンドル（上書き保存用）
   let currentDirHandle = null;   // ディレクトリハンドル（フォルダ選択時）
+  let allSlideEntries = [];      // フォルダ内の全HTMLエントリー（File System Access API版）
+  let allSlideFiles = [];        // フォルダ内の全HTMLファイル（レガシー版）
+  let currentSlideIndex = -1;    // 現在編集中のスライドインデックス
 
   // ── 選択ボックス要素 ──
   let selectionBox = null;
@@ -909,6 +982,10 @@ body {
       currentDirHandle = null;
       folderImageMap = {};
       originalImageSrcs = {};
+      allSlideEntries = [];
+      allSlideFiles = [];
+      currentSlideIndex = -1;
+      slidePanel.classList.remove('visible');
       const file = await handle.getFile();
       const html = await file.text();
       parseAndLoadSlide(html, file.name);
@@ -936,12 +1013,12 @@ body {
         return;
       }
 
-      // スライド選択
-      if (htmlEntries.length === 1) {
-        await loadFromHandle(htmlEntries[0].handle, htmlEntries[0].name);
-      } else {
-        showSlideSelector(htmlEntries);
-      }
+      // スライドパネルを構築して最初のスライドを読み込む
+      htmlEntries.sort((a, b) => a.name.localeCompare(b.name));
+      allSlideEntries = htmlEntries;
+      allSlideFiles = [];
+      await buildSlidePanel();
+      await switchSlide(0);
     } catch (e) {
       if (e.name !== 'AbortError') console.error(e);
     }
@@ -1016,11 +1093,12 @@ body {
       return;
     }
 
-    if (htmlFiles.length === 1) {
-      loadHTMLFile(htmlFiles[0]);
-    } else {
-      showSlideSelectorLegacy(htmlFiles);
-    }
+    allSlideFiles = htmlFiles;
+    allSlideEntries = [];
+    buildSlidePanelLegacy();
+    currentSlideIndex = 0;
+    loadHTMLFile(htmlFiles[0]);
+    updateSlidePanelHighlight();
   }
 
   // スライド選択ダイアログ（File System Access API版）
@@ -1085,6 +1163,146 @@ body {
     overlay.appendChild(dialog);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
+  }
+
+  // ============================================================
+  // スライドパネル（左側サムネイル一覧）
+  // ============================================================
+
+  // サムネイル要素を作成
+  function createSlideThumb(html, name, index) {
+    const thumb = document.createElement('div');
+    thumb.className = 'slide-thumb';
+    thumb.dataset.index = index;
+
+    const preview = document.createElement('div');
+    preview.className = 'slide-thumb-preview';
+
+    const inner = document.createElement('div');
+    inner.className = 'slide-thumb-preview-inner';
+
+    // HTMLをパースしてスライド内容を抽出
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const slideEl = doc.querySelector('.slide');
+    if (slideEl) {
+      inner.innerHTML = slideEl.innerHTML;
+      // スライドのクラスを継承（ブランドカラー等）
+      const slideClasses = slideEl.className.replace('slide', '').trim();
+      if (slideClasses) inner.className += ' ' + slideClasses;
+
+      // 画像の相対パスをblob URLに置換
+      if (Object.keys(folderImageMap).length > 0) {
+        inner.querySelectorAll('img').forEach(img => {
+          const src = img.getAttribute('src');
+          if (src && !src.startsWith('data:') && !src.startsWith('blob:') && !src.startsWith('http')) {
+            const normalized = src.replace(/\\/g, '/');
+            if (folderImageMap[normalized]) img.src = folderImageMap[normalized];
+          }
+        });
+        inner.querySelectorAll('*').forEach(el => {
+          const bg = el.style.backgroundImage;
+          if (bg && bg.includes('url(')) {
+            const match = bg.match(/url\(['"]?([^'")\s]+)['"]?\)/);
+            if (match && match[1] && !match[1].startsWith('data:') && !match[1].startsWith('blob:') && !match[1].startsWith('http')) {
+              const normalized = match[1].replace(/\\/g, '/');
+              if (folderImageMap[normalized]) el.style.backgroundImage = `url('${folderImageMap[normalized]}')`;
+            }
+          }
+        });
+      }
+    }
+
+    // コンテナ幅に合わせてスケール計算（レンダリング後に調整）
+    requestAnimationFrame(() => {
+      const containerW = preview.clientWidth || 176;
+      const s = containerW / 1280;
+      inner.style.transform = `scale(${s})`;
+    });
+
+    preview.appendChild(inner);
+    thumb.appendChild(preview);
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'slide-thumb-name';
+    nameEl.textContent = name.replace(/\.html?$/i, '');
+    thumb.appendChild(nameEl);
+
+    // クリックでスライド切り替え
+    thumb.addEventListener('click', () => {
+      if (index === currentSlideIndex) return;
+      if (allSlideEntries.length > 0) {
+        switchSlide(index);
+      } else {
+        switchSlideLegacy(index);
+      }
+    });
+
+    return thumb;
+  }
+
+  // パネル構築（File System Access API版）
+  async function buildSlidePanel() {
+    slidePanel.classList.add('visible');
+    slidePanelList.innerHTML = '';
+
+    for (let i = 0; i < allSlideEntries.length; i++) {
+      const entry = allSlideEntries[i];
+      const file = await entry.handle.getFile();
+      const html = await file.text();
+      const thumb = createSlideThumb(html, entry.name, i);
+      slidePanelList.appendChild(thumb);
+    }
+  }
+
+  // パネル構築（レガシー版）
+  function buildSlidePanelLegacy() {
+    slidePanel.classList.add('visible');
+    slidePanelList.innerHTML = '';
+
+    const promises = allSlideFiles.map((f, i) => {
+      return new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve({ html: e.target.result, name: f.name, index: i });
+        reader.readAsText(f, 'utf-8');
+      });
+    });
+
+    Promise.all(promises).then(results => {
+      results.sort((a, b) => a.index - b.index);
+      results.forEach(r => {
+        const thumb = createSlideThumb(r.html, r.name, r.index);
+        slidePanelList.appendChild(thumb);
+      });
+      updateSlidePanelHighlight();
+    });
+  }
+
+  // スライド切り替え（File System Access API版）
+  async function switchSlide(index) {
+    if (index === currentSlideIndex) return;
+    currentSlideIndex = index;
+    const entry = allSlideEntries[index];
+    await loadFromHandle(entry.handle, entry.name);
+    updateSlidePanelHighlight();
+  }
+
+  // スライド切り替え（レガシー版）
+  function switchSlideLegacy(index) {
+    if (index === currentSlideIndex) return;
+    currentSlideIndex = index;
+    loadHTMLFile(allSlideFiles[index]);
+    updateSlidePanelHighlight();
+  }
+
+  // 現在のスライドをハイライト
+  function updateSlidePanelHighlight() {
+    slidePanelList.querySelectorAll('.slide-thumb').forEach((thumb, i) => {
+      thumb.classList.toggle('active', i === currentSlideIndex);
+    });
+    // アクティブなサムネイルをスクロールして見える位置に
+    const active = slidePanelList.querySelector('.slide-thumb.active');
+    if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 
   function parseAndLoadSlide(html, fileName) {
