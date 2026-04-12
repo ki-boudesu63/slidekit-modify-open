@@ -3,11 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- セキュリティポリシー: 外部通信を禁止し、iframe埋め込みを防止 -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com;
+               font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:;
+               img-src 'self' blob: data:;
+               script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;
+               connect-src 'none';
+               frame-ancestors 'none';
+               base-uri 'none';
+               form-action 'none';">
 <title>SlideKit Visual Editor</title>
-<!-- スライドのスタイルを正しく描画するためのCDN -->
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+<!-- スライドのスタイルを正しく描画するためのCDN（SRIハッシュで改ざん検知） -->
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"
+      integrity="sha384-HtMZLkYo+pR5/u7zCzXxMJP6QoNnQJt1qkHM0EaOPvGDIzaVZbmYr/TlvUZ/sKAg" crossorigin="anonymous">
+<link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet"
+      integrity="sha384-iw3OoTErCYJJB9mCa8LNS2hbsQ7M3C0EpIsO/H5+EGAkPGc6rk+V8i04oW/K5xq0" crossorigin="anonymous">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Lato:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- DOMPurify: 読み込むスライドHTMLのサニタイズに使用 -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"
+        integrity="sha384-Ic7KEGROu37YaruU6NyiYeib7UhjFyDZQ5fzBAji965L75T/4LGk5nzwMEjNGexs"
+        crossorigin="anonymous"></script>
 <style>
 /* ── デザイントークン ── */
 :root {
@@ -623,6 +640,96 @@ body {
 (() => {
   'use strict';
 
+  // ============================================================
+  // セキュリティガード
+  // ============================================================
+  // iframe埋め込み防止（クリックジャッキング対策）
+  if (window.self !== window.top) {
+    document.body.innerHTML = '';
+    document.body.textContent = 'このページはiframe内では動作しません。';
+    throw new Error('Clickjacking prevention: page loaded in iframe');
+  }
+
+  // DOMPurifyの存在確認
+  const hasDOMPurify = typeof window.DOMPurify !== 'undefined';
+
+  // スライドHTMLのサニタイズ設定
+  // スクリプト実行を防ぎつつ、スライド表現に必要な要素・属性は許可
+  const PURIFY_CONFIG = {
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form',
+                  'input', 'button', 'select', 'textarea', 'base', 'meta', 'link'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onmouseout',
+                  'onmousedown', 'onmouseup', 'onmouseenter', 'onmouseleave',
+                  'onfocus', 'onblur', 'oninput', 'onchange', 'onsubmit',
+                  'onanimationstart', 'onanimationend', 'ontransitionend',
+                  'onkeydown', 'onkeyup', 'onkeypress', 'onwheel', 'onscroll',
+                  'formaction', 'srcdoc'],
+    ALLOW_DATA_ATTR: true,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|blob|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    KEEP_CONTENT: true,
+    IN_PLACE: false
+  };
+
+  // HTML文字列をサニタイズして安全なHTML文字列を返す
+  function sanitizeHTML(html) {
+    if (typeof html !== 'string') return '';
+    if (hasDOMPurify) {
+      return window.DOMPurify.sanitize(html, PURIFY_CONFIG);
+    }
+    // フォールバック: DOMPurifyが読み込めなかった場合の簡易サニタイズ
+    return fallbackSanitize(html);
+  }
+
+  // フォールバックサニタイザ（DOMPurify未ロード時の最低限の防御）
+  function fallbackSanitize(html) {
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    const walker = document.createTreeWalker(tpl.content, NodeFilter.SHOW_ELEMENT, null);
+    const toRemove = [];
+    const dangerousTags = new Set(['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED',
+      'FORM', 'INPUT', 'BUTTON', 'SELECT', 'TEXTAREA', 'BASE', 'META', 'LINK']);
+    let node = walker.nextNode();
+    while (node) {
+      if (dangerousTags.has(node.tagName)) {
+        toRemove.push(node);
+      } else {
+        // イベントハンドラ属性を除去
+        const attrs = Array.from(node.attributes || []);
+        for (const a of attrs) {
+          const n = a.name.toLowerCase();
+          if (n.startsWith('on')) node.removeAttribute(a.name);
+          // javascript: スキームの除去
+          if ((n === 'href' || n === 'src' || n === 'xlink:href') &&
+              /^\s*javascript:/i.test(a.value)) {
+            node.removeAttribute(a.name);
+          }
+        }
+      }
+      node = walker.nextNode();
+    }
+    toRemove.forEach(el => el.remove());
+    return tpl.innerHTML;
+  }
+
+  // スライドCSSのスコーピング
+  // 読み込んだCSSが .slide-canvas 配下にのみ適用されるよう強制する
+  function scopeSlideCSS(css) {
+    if (typeof css !== 'string') return '';
+    // body, html, *, :root 等のグローバルセレクタを .slide-canvas 配下にスコープ
+    // コメントを先に除去して干渉を避ける
+    let out = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    // @import 文を除去（外部リソース読み込み防止）
+    out = out.replace(/@import\s+[^;]+;/gi, '');
+    // 既存の .slide を .slide-canvas に置換
+    out = out.replace(/\.slide\b/g, '.slide-canvas');
+    // グローバルセレクタを制限
+    // body { ... } / html { ... } / * { ... } / :root { ... } を .slide-canvas にバインド
+    out = out.replace(/(^|\})\s*(body|html|\*|:root)\s*\{/g, '$1 .slide-canvas {');
+    // "body .foo" のような複合セレクタ内のbody/htmlを .slide-canvas に置換
+    out = out.replace(/(^|,|\})\s*(body|html)(\s+[^{,}]+)\{/g, '$1 .slide-canvas$3{');
+    return out;
+  }
+
   // ── DOM参照 ──
   const $ = id => document.getElementById(id);
   const canvasArea = $('canvasArea');
@@ -1234,7 +1341,8 @@ body {
     const doc = parser.parseFromString(html, 'text/html');
     const slideEl = doc.querySelector('.slide');
     if (slideEl) {
-      inner.innerHTML = slideEl.innerHTML;
+      // サニタイズ: 悪意あるHTMLファイルからのXSS防止
+      inner.innerHTML = sanitizeHTML(slideEl.innerHTML);
       // スライドのクラスを継承（ブランドカラー等）
       const slideClasses = slideEl.className.replace('slide', '').trim();
       if (slideClasses) inner.className += ' ' + slideClasses;
@@ -1368,8 +1476,8 @@ body {
       return;
     }
 
-    // スライドの中身をキャンバスに注入
-    slideCanvas.innerHTML = slideEl.innerHTML;
+    // スライドの中身をキャンバスに注入（サニタイズ済み）
+    slideCanvas.innerHTML = sanitizeHTML(slideEl.innerHTML);
     // slideCanvas自体にclassを適用
     slideCanvas.className = 'slide-canvas ' + slideEl.className.replace('slide', '').trim();
 
@@ -1409,9 +1517,8 @@ body {
     styleTags.forEach(st => {
       const styleEl = document.createElement('style');
       styleEl.id = 'slideCustomStyle';
-      let css = st.textContent;
-      css = css.replace(/\.slide\b/g, '.slide-canvas');
-      styleEl.textContent = css;
+      // スコーピング: 読み込みCSSがエディタUIを破壊しないよう .slide-canvas 配下に限定
+      styleEl.textContent = scopeSlideCSS(st.textContent);
       document.head.appendChild(styleEl);
     });
 
@@ -1708,10 +1815,29 @@ ${slideContent}
   // ============================================================
   // テキスト編集
   // ============================================================
+  // ペースト時にプレーンテキストのみ許可（HTML経由のXSS防止）
+  function handleEditablePaste(e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain') || '';
+    // execCommandは非推奨だがcontentEditable用途では依然実用的
+    if (document.queryCommandSupported && document.queryCommandSupported('insertText')) {
+      document.execCommand('insertText', false, text);
+    } else {
+      // フォールバック: Selection APIでテキストノード挿入
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+    }
+  }
+
   function startEditing(el) {
     if (isEditing) finishEditing();
     isEditing = true;
     el.contentEditable = 'true';
+    el.addEventListener('paste', handleEditablePaste);
     el.focus();
     el.style.outline = '2px solid var(--accent)';
     el.style.cursor = 'text';
@@ -1730,6 +1856,7 @@ ${slideContent}
     const editingEl = slideCanvas.querySelector('[contenteditable="true"]');
     if (editingEl) {
       editingEl.contentEditable = 'false';
+      editingEl.removeEventListener('paste', handleEditablePaste);
       editingEl.style.outline = '';
       editingEl.style.cursor = '';
     }

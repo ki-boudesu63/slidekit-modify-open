@@ -12,3 +12,8 @@ tmp_test/
 .env.*
 node_modules/
 skills/slidekit-pptx/
+
+# バックアップファイル（編集前スナップショット）
+*.bak
+*.bak2
+*.before-codex
